@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubectl-audit
+  labels:
+    app: kubectl-audit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubectl-audit
+  template:
+    metadata:
+      labels:
+        app: kubectl-audit
+    spec:
+      initContainers:
+        - name: init-ssl-certificate
+          image: registry.spreadgroup.com/sprd/base/alpine-kubectl-openssl:1.23.7-1
+          command:
+            - "/bin/sh"
+            - "-c"
+            - "/usr/local/bin/create_and_sign kubectl-audit default /ssl && chmod -v 0755 /ssl && chmod -v 0644 /ssl/kubectl-audit.pem /ssl/kubectl-audit.key"
+          volumeMounts:
+            - mountPath: /ssl
+              name: ssl-volume
+      containers:
+        - name: kubectl-audit
+          image: registry.spreadgroup.com/sprd/kubectl-audit:local
+          command:
+            - "/app/kubectl-audit"
+          args:
+            - "--addr=0.0.0.0:8443"
+            - "--cert-file=/ssl/kubectl-audit.pem"
+            - "--key-file=/ssl/kubectl-audit.key"
+            - "--verbose"
+          ports:
+            - containerPort: 8443
+          volumeMounts:
+            - mountPath: /ssl
+              name: ssl-volume
+              readOnly: true
+      volumes:
+        - name: ssl-volume
+          emptyDir: {}
+      imagePullSecrets:
+        - name: registry.spreadgroup.com
+      serviceAccountName: kubectl-audit
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubectl-audit
+  namespace: default
+  labels:
+    app: kubectl-audit
+secrets:
+  - name: kubectl-audit-permissions
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubectl-audit
+spec:
+  selector:
+    app: kubectl-audit
+  ports:
+    - port: 443
+      targetPort: 8443

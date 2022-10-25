@@ -1,0 +1,20 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: kubectl-audit-webhook
+webhooks:
+- name: kubectl-audit.default.svc
+  rules:
+  - apiGroups:   [""]
+    apiVersions: ["v1"]
+    resources:   ["pods/exec"]
+    operations: ["*"]
+    scope:       "Namespaced"
+  clientConfig:
+    service:
+      namespace: default
+      name: kubectl-audit
+    caBundle: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJkakNDQVIyZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWpNU0V3SHdZRFZRUUREQmhyTTNNdGMyVnkKZG1WeUxXTmhRREUyTmpZMk9USXlPRFV3SGhjTk1qSXhNREkxTVRBd05EUTFXaGNOTXpJeE1ESXlNVEF3TkRRMQpXakFqTVNFd0h3WURWUVFEREJock0zTXRjMlZ5ZG1WeUxXTmhRREUyTmpZMk9USXlPRFV3V1RBVEJnY3Foa2pPClBRSUJCZ2dxaGtqT1BRTUJCd05DQUFTTUVURG9aWjFtZnBNL3RpcmxCbGFhbTk1Y2pKV0pkN2F5NWJ1VjRRTHMKVGswUE0zK0Q4UmJEVmVpc2wzRllFQXFUMnhpc1pFR1BkV2FFamhQY0YwOHZvMEl3UURBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUTRFRmdRVTZUd3JkR1FrMGRFdVNYemU3enNDCnpWSXNGRzR3Q2dZSUtvWkl6ajBFQXdJRFJ3QXdSQUlnTklaTmhnM2s0a0F0cXJmb2I2WFY2QXpjbjVQYjJZLzAKNGk4ODlHb0Z4R2tDSUZhcUdGUDh5YURpUGw3Rm9WMTBEVzgvQVQrSzFHUUkvNEZSamhBLysrekoKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo="
+  admissionReviewVersions: ["v1"]
+  sideEffects: None  # FIXME: consider using NoneOrDryRun (skip side effects if dryRun is true)
+  timeoutSeconds: 5
