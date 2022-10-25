@@ -38,10 +38,19 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "addr",
-				Value: "localhost:1234",
+				Value: "localhost:8443",
 				Usage: "Address to listen on",
 			},
-			&cli.BoolFlag{
+			&cli.StringFlag{
+				Name:  "cert-file",
+				Value: "localhost.crt",
+				Usage: "HTTPS cert file",
+			},
+			&cli.StringFlag{
+				Name:  "key-file",
+				Value: "localhost.key",
+				Usage: "HTTPS key file",
+			}, &cli.BoolFlag{
 				Name:  "verbose",
 				Value: false,
 				Usage: "Enable debug logging",
@@ -63,7 +72,7 @@ func runServer(c *cli.Context) error {
 	http.HandleFunc("/", handleAdmission)
 
 	logrus.Infof("Listening on http://%s", c.String("addr"))
-	err := http.ListenAndServe(c.String("addr"), nil)
+	err := http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), nil)
 	if err != nil {
 		return err
 	}
