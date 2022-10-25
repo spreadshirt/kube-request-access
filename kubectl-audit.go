@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -144,8 +145,72 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+var admissionReviewExample = `
+{
+  "kind": "AdmissionReview",
+  "apiVersion": "admission.k8s.io/v1",
+  "request": {
+    "uid": "5cf446fc-5745-47a1-aecd-f4231a676bd6",
+    "kind": {
+      "group": "",
+      "version": "v1",
+      "kind": "PodExecOptions"
+    },
+    "resource": {
+      "group": "",
+      "version": "v1",
+      "resource": "pods"
+    },
+    "subResource": "exec",
+    "requestKind": {
+      "group": "",
+      "version": "v1",
+      "kind": "PodExecOptions"
+    },
+    "requestResource": {
+      "group": "",
+      "version": "v1",
+      "resource": "pods"
+    },
+    "requestSubResource": "exec",
+    "name": "nginx-deployment-6595874d85-2bhgt",
+    "namespace": "default",
+    "operation": "CONNECT",
+    "userInfo": {
+      "username": "system:admin",
+      "groups": [
+        "system:masters",
+        "system:authenticated"
+      ]
+    },
+    "object": {
+      "kind": "PodExecOptions",
+      "apiVersion": "v1",
+      "stdin": true,
+      "stdout": true,
+      "tty": true,
+      "container": "nginx",
+      "command": [
+        "/bin/sh"
+      ]
+    },
+    "oldObject": null,
+    "dryRun": false,
+    "options": null
+  }
+}
+`
+
 func handle(logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
-	logger.Debug("got admission review: %#v", admissionReview)
+	if logrus.GetLevel() == logrus.DebugLevel {
+		buf := new(bytes.Buffer)
+		enc := json.NewEncoder(buf)
+		_ = enc.Encode(admissionReview)
+		logger.WithField("admission-review", buf.String()).Debug("got admission review")
+	}
+
+	// admissionReview.Request.UserInfo.Username
+
 	return &admissionv1.AdmissionResponse{
 		Allowed: true,
 		UID:     admissionReview.Request.UID,
