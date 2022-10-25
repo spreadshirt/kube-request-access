@@ -2,13 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"git.spreadomat.net/go/logging"
 	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,10 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
-
-var config struct {
-	Addr string
-}
 
 var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
@@ -35,13 +32,42 @@ func addToScheme(scheme *runtime.Scheme) {
 }
 
 func main() {
-	flag.StringVar(&config.Addr, "addr", "localhost:1234", "Address to listen on")
-	flag.Parse()
+	app := cli.App{
+		Name:  "kubectl-audit",
+		Usage: "Run audited commands using kubectl",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "addr",
+				Value: "localhost:1234",
+				Usage: "Address to listen on",
+			},
+			&cli.BoolFlag{
+				Name:  "verbose",
+				Value: false,
+				Usage: "Enable debug logging",
+			},
+		},
+		Action: runServer,
+	}
+	err := app.Run(os.Args)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+}
+
+func runServer(c *cli.Context) error {
+	if c.Bool("verbose") {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 
 	http.HandleFunc("/", handleAdmission)
 
-	logrus.Infof("Listening on http://%s", config.Addr)
-	logrus.Fatal(http.ListenAndServe(config.Addr, nil))
+	logrus.Infof("Listening on http://%s", c.String("addr"))
+	err := http.ListenAndServe(c.String("addr"), nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func handleAdmission(w http.ResponseWriter, req *http.Request) {
@@ -79,7 +105,7 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 		}
 		responseAdmissionReview := &admissionv1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		responseAdmissionReview.Response = handle(requestedAdmissionReview)
+		responseAdmissionReview.Response = handle(logger, requestedAdmissionReview)
 		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 		responseObj = responseAdmissionReview
 	default:
@@ -102,6 +128,10 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func handle(admissionReview *admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
-	panic("not implemented")
+func handle(logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+	logger.Debug("got admission review: %#v", admissionReview)
+	return &admissionv1.AdmissionResponse{
+		Allowed: true,
+		UID:     admissionReview.Request.UID,
+	}
 }
