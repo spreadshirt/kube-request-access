@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"git.spreadomat.net/go/logging"
+	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -69,10 +70,16 @@ func runServer(c *cli.Context) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	http.HandleFunc("/", handleAdmission)
+	router := mux.NewRouter()
+	router.HandleFunc("/", handleAdmission)
 
-	logrus.Infof("Listening on http://%s", c.String("addr"))
-	err := http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), nil)
+	accessLogger := logging.NewAccessLogger(nil, nil, nil)
+	router.Use(
+		accessLogger.Middleware,
+	)
+
+	logrus.Infof("Listening on https://%s", c.String("addr"))
+	err := http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), router)
 	if err != nil {
 		return err
 	}
