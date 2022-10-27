@@ -15,16 +15,16 @@ spec:
       labels:
         app: kubectl-audit
     spec:
-      initContainers:
-        - name: init-ssl-certificate
-          image: registry.spreadgroup.com/sprd/base/alpine-kubectl-openssl:1.23.7-1
-          command:
-            - "/bin/sh"
-            - "-c"
-            - "/usr/local/bin/create_and_sign kubectl-audit default /ssl && chmod -v 0755 /ssl && chmod -v 0644 /ssl/kubectl-audit.pem /ssl/kubectl-audit.key"
-          volumeMounts:
-            - mountPath: /ssl
-              name: ssl-volume
+      # initContainers:
+      #   - name: init-ssl-certificate
+      #     image: registry.spreadgroup.com/sprd/base/alpine-kubectl-openssl:1.23.7-1
+      #     command:
+      #       - "/bin/sh"
+      #       - "-c"
+      #       - "/usr/local/bin/create_and_sign kubectl-audit default /ssl && chmod -v 0755 /ssl && chmod -v 0644 /ssl/kubectl-audit.pem /ssl/kubectl-audit.key"
+      #     volumeMounts:
+      #       - mountPath: /ssl
+      #         name: ssl-volume
       containers:
         - name: kubectl-audit
           image: kubectl-audit:local
@@ -32,18 +32,24 @@ spec:
             - "/app/kubectl-audit"
           args:
             - "--addr=0.0.0.0:8443"
-            - "--cert-file=/ssl/kubectl-audit.pem"
-            - "--key-file=/ssl/kubectl-audit.key"
+            - "--cert-file=/ssl/localhost.crt"
+            - "--key-file=/ssl/localhost.key"
             - "--verbose"
           ports:
             - containerPort: 8443
           volumeMounts:
-            - mountPath: /ssl
-              name: ssl-volume
+            # - mountPath: /ssl
+            #   name: ssl-volume
+            #   readOnly: true
+            - name: certs
+              mountPath: /ssl
               readOnly: true
       volumes:
         - name: ssl-volume
           emptyDir: {}
+        - configMap:
+            name: kubectl-audit-certs
+          name: certs
       imagePullSecrets:
         - name: registry.spreadgroup.com
       serviceAccountName: kubectl-audit

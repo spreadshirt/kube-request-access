@@ -45,12 +45,12 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:  "cert-file",
-				Value: "localhost.crt",
+				Value: "dev/localhost.crt",
 				Usage: "HTTPS cert file",
 			},
 			&cli.StringFlag{
 				Name:  "key-file",
-				Value: "localhost.key",
+				Value: "dev/localhost.key",
 				Usage: "HTTPS key file",
 			}, &cli.BoolFlag{
 				Name:  "verbose",

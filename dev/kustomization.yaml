@@ -1,0 +1,11 @@
+resources:
+  - kubectl-audit.yaml
+  - kubectl-audit-rbac.yaml
+  - validating-admission-webhook.yaml
+  # example deployment to play around with
+  - nginx-deployment.yaml
+configMapGenerator:
+  - name: kubectl-audit-certs
+    files:
+      - localhost.key
+      - localhost.crt

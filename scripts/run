@@ -32,9 +32,9 @@ fi
 
 echo ">>> Starting kubectl-audit in k3s"
 # redeploy kubernetes yaml files if they change
-git ls-files -co dev | entr -c -r kubectl --context "$CONTEXT" apply -R -f dev/&
+git ls-files -co dev | entr -c -r kubectl --context "$CONTEXT" apply -k dev/&
 # redeploy kubectl-audit to kubernetes if it changes
-git ls-files -co '*.go' | CONTEXT="$CONTEXT" entr -c -r ./scripts/restart --watch&
+git ls-files -co | grep -v '^dev/' | CONTEXT="$CONTEXT" entr -c -r ./scripts/restart --watch&
 sleep 5
 
 echo ">>> Starting kubectl-audit locally"
