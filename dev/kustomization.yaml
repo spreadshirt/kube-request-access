@@ -4,6 +4,8 @@ resources:
   - validating-admission-webhook.yaml
   # example deployment to play around with
   - nginx-deployment.yaml
+  # example role for "developers" locally
+  - developer-role.yaml
 configMapGenerator:
   - name: kubectl-audit-certs
     files:

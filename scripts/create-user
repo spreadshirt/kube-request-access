@@ -1,0 +1,50 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if [ "$#" -eq "0" ]; then
+  echo "Usage: ./scripts/create-user <name>"
+  echo
+  echo "  Creates a new 'developer' user for testing things with."
+  echo
+  echo "  The user will be available using 'kubectl --context <name> get pods' and friends."
+  echo
+  echo "  See https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/#normal-user for how this works."
+  exit 1;
+fi
+
+NAME="$1"
+
+openssl genrsa -out "$NAME.key" 2048
+openssl req -new -key "$NAME.key" -out "$NAME.csr" -config <( printf "prompt=no\ndistinguished_name=req_distinguished_name\n[req_distinguished_name]\nCN=%s\nOU=org\nemailAddress=%s@org.org\n" "$NAME" "$NAME" ) 
+
+CLUSTER_NAME="${CLUSTER_NAME:-k3s-default}"
+CONTEXT="k3d-$CLUSTER_NAME"
+
+# request cert
+cat <<EOF | kubectl --context "$CONTEXT" apply -f -
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: "$NAME"
+spec:
+  request: "$(base64 < "$NAME.csr" | tr -d "\n")"
+  signerName: kubernetes.io/kube-apiserver-client
+  expirationSeconds: 86400  # one day
+  usages:
+  - client auth
+EOF
+
+# approve cert request
+kubectl --context "$CONTEXT" certificate approve "$NAME"
+
+# get cert
+kubectl --context "$CONTEXT" get csr "$NAME" -o jsonpath='{.status.certificate}'| base64 -d > "$NAME.crt"
+
+kubectl --context "$CONTEXT" config set-credentials "$NAME" --client-key="$NAME.key" --client-certificate="$NAME.crt" --embed-certs=true
+
+kubectl --context "$CONTEXT" config set-context "$NAME" --cluster="$CONTEXT" --user="$NAME"
+
+rm "$NAME.key" "$NAME.csr" "$NAME.crt"
+
+kubectl --context "$CONTEXT" get rolebinding "developer-binding-$NAME" &> /dev/null || kubectl --context "$CONTEXT" create rolebinding "developer-binding-$NAME" --role=developer --user="$NAME"
