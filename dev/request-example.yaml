@@ -1,0 +1,17 @@
+apiVersion: spreadgroup.com/v1
+kind: AccessRequest
+metadata:
+  name: request-nginx-jane
+  namespace: default
+spec:
+  userInfo:
+    username: jane
+  execOptions:
+    apiVersion: v1
+    kind: PodExecOptions
+    stdin: true
+    stdout: true
+    tty: true
+    container: nginx
+    command:
+      - /bin/sh

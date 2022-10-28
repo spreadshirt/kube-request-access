@@ -2,6 +2,8 @@ resources:
   - kubectl-audit.yaml
   - kubectl-audit-rbac.yaml
   - validating-admission-webhook.yaml
+  # crds
+  - request-crd.yaml
   # example deployment to play around with
   - nginx-deployment.yaml
   # example role for "developers" locally
