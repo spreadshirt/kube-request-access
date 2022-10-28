@@ -10,6 +10,11 @@ webhooks:
     resources:   ["pods/exec"]
     operations: ["*"]
     scope:       "Namespaced"
+  - apiGroups: ["spreadgroup.com"]
+    apiVersions: ["v1"]
+    resources: ["accessrequests"]
+    operations: ["*"]
+    scope: Namespaced
   clientConfig:
     service:
       namespace: default

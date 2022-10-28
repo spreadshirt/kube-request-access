@@ -15,9 +15,12 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
+	accessrequestsv1 "git.spreadomat.net/deleng/kubectl-audit/apis/accessrequests/v1"
 )
 
 var scheme = runtime.NewScheme()
@@ -31,6 +34,9 @@ func addToScheme(scheme *runtime.Scheme) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(admissionv1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
+
+	// crds
+	utilruntime.Must(accessrequestsv1.AddToScheme(scheme))
 }
 
 func main() {
@@ -209,7 +215,38 @@ func handle(logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) 
 		logger.WithField("admission-review", buf.String()).Debug("got admission review")
 	}
 
-	// admissionReview.Request.UserInfo.Username
+	deserializer := codecs.UniversalDeserializer()
+	obj, gvk, err := deserializer.Decode(admissionReview.Request.Object.Raw, nil, nil)
+	if err != nil {
+		msg := fmt.Sprintf("Request could not be decoded: %v", err)
+		logger.Error(msg)
+		return &admissionv1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status:  "Failure",
+				Message: msg,
+				Code:    http.StatusInternalServerError,
+			},
+		}
+	}
+
+	switch *gvk {
+	case accessrequestsv1.SchemeGroupVersion.WithKind("AccessRequest"):
+		_, ok := obj.(*accessrequestsv1.AccessRequest)
+		if !ok {
+			msg := fmt.Sprintf("expected v1.AccessRequest but got: %T", obj)
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  "Failure",
+					Message: msg,
+					Code:    http.StatusInternalServerError,
+				},
+			}
+		}
+
+		// TODO: check that access request is made for current user
+	}
 
 	return &admissionv1.AdmissionResponse{
 		Allowed: true,
