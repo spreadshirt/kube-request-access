@@ -14,3 +14,9 @@ rules:
   - list
   - update
   - delete
+- apiGroups: ["spreadgroup.com"]
+  resources:
+  - accessrequests
+  verbs:
+  - create
+  - get

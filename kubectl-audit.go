@@ -232,7 +232,7 @@ func handle(logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) 
 
 	switch *gvk {
 	case accessrequestsv1.SchemeGroupVersion.WithKind("AccessRequest"):
-		_, ok := obj.(*accessrequestsv1.AccessRequest)
+		accessRequest, ok := obj.(*accessrequestsv1.AccessRequest)
 		if !ok {
 			msg := fmt.Sprintf("expected v1.AccessRequest but got: %T", obj)
 			return &admissionv1.AdmissionResponse{
@@ -245,7 +245,19 @@ func handle(logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) 
 			}
 		}
 
-		// TODO: check that access request is made for current user
+		if admissionReview.Request.UserInfo.Username != accessRequest.Spec.UserInfo.Username {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: "Failure",
+					Message: fmt.Sprintf("you can only request access for yourself (requested for %q, but authenticated as %q)",
+						accessRequest.Spec.UserInfo.Username,
+						admissionReview.Request.UserInfo.Username),
+					Code: http.StatusForbidden,
+				},
+				UID: admissionReview.Request.UID,
+			}
+		}
 	}
 
 	return &admissionv1.AdmissionResponse{
