@@ -12,12 +12,17 @@ import (
 
 type AccessrequestsV1Interface interface {
 	RESTClient() rest.Interface
+	AccessGrantsGetter
 	AccessRequestsGetter
 }
 
 // AccessrequestsV1Client is used to interact with features provided by the accessrequests.spreadgroup.com group.
 type AccessrequestsV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *AccessrequestsV1Client) AccessGrants(namespace string) AccessGrantInterface {
+	return newAccessGrants(c, namespace)
 }
 
 func (c *AccessrequestsV1Client) AccessRequests(namespace string) AccessRequestInterface {

@@ -20,7 +20,7 @@ dev/validating-admission-webhook.yaml: dev/localhost.crt
 	
 generate-code: apis/accessrequests/v1/zz_generated.deepcopy.go
 
-apis/accessrequests/v1/zz_generated.deepcopy.go: Makefile apis/accessrequests/v1/access_request.go
+apis/accessrequests/v1/zz_generated.deepcopy.go: Makefile apis/accessrequests/v1/access_request.go apis/accessrequests/v1/access_grant.go
 	# setup fake gopath so that the code generation can work
 	mkdir -p  .go/src/git.spreadomat.net/deleng
 	ln -sf $$PWD .go/src/git.spreadomat.net/deleng

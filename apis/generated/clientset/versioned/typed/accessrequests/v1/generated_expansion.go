@@ -2,4 +2,6 @@
 
 package v1
 
+type AccessGrantExpansion interface{}
+
 type AccessRequestExpansion interface{}

@@ -12,6 +12,10 @@ type FakeAccessrequestsV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeAccessrequestsV1) AccessGrants(namespace string) v1.AccessGrantInterface {
+	return &FakeAccessGrants{c, namespace}
+}
+
 func (c *FakeAccessrequestsV1) AccessRequests(namespace string) v1.AccessRequestInterface {
 	return &FakeAccessRequests{c, namespace}
 }
