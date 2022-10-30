@@ -26,6 +26,7 @@ rules:
       - spreadgroup.com
     resources:
       - accessrequests
+      - accessgrants
     verbs:
       - list
 ---

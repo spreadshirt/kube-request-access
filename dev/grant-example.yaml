@@ -6,5 +6,5 @@ metadata:
 spec:
   grantedBy:
     username: system:admin
-  grantFor: request-access-jane
+  grantFor: accessrequest-6z4wd
 status: "granted"

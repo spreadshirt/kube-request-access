@@ -283,6 +283,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 		}
 
 		// TODO: reject stdin
+		// TODO: consider rejecting multiple requests for the same command
 
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,
@@ -354,8 +355,45 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 		}
 
-		// TODO: only allow if access + matching grant exists
 		// TODO: reject stdin
+
+		accessGrants, err := accessRequestsClient.AccessGrants(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  "Failure",
+					Message: fmt.Sprintf("could not list accessgrants: %s", err),
+					Code:    http.StatusInternalServerError,
+				},
+				UID: admissionReview.Request.UID,
+			}
+		}
+
+		var grantMatch *accessrequestsv1.AccessGrant
+		for _, accessGrant := range accessGrants.Items {
+			logger.Debugf("for %q %q", accessGrant.Spec.GrantFor, match.Name)
+			logger.Debugf("status %q", accessGrant.Status)
+			if accessGrant.Spec.GrantFor == match.Name &&
+				accessGrant.Status == accessrequestsv1.AccessGrantGranted {
+				grantMatch = &accessGrant
+				break
+			}
+		}
+
+		if grantMatch == nil {
+			logger.Error("no grant match")
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure,
+					Reason: metav1.StatusReasonForbidden,
+					Code:   http.StatusForbidden,
+				},
+			}
+		}
+
+		// FIXME: remove access request and access grant (i.e. "burn after use")
 
 		logger.Info("audit")
 		return &admissionv1.AdmissionResponse{
