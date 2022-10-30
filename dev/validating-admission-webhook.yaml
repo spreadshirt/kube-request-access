@@ -13,7 +13,7 @@ webhooks:
   - apiGroups: ["spreadgroup.com"]
     apiVersions: ["v1"]
     resources: ["accessrequests"]
-    operations: ["*"]
+    operations: ["CREATE"]
     scope: Namespaced
   clientConfig:
     service:

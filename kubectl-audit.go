@@ -16,6 +16,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -280,49 +281,96 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 				UID: admissionReview.Request.UID,
 			}
 		}
-	}
 
-	// TODO: only allow if access + matching grant exists
-	// TODO: reject stdin
-	// admissionReview.Request.Resource
-	// admissionReview.Request.SubResource
-	// admissionReview.Request.Name
-	// admissionReview.Request.Namespace
+		// TODO: reject stdin
 
-	accessRequests, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("username = %s", admissionReview.Request.UserInfo.Username),
-	})
-	if err != nil {
+		return &admissionv1.AdmissionResponse{
+			Allowed: true,
+			UID:     admissionReview.Request.UID,
+		}
+	case corev1.SchemeGroupVersion.WithKind("PodExecOptions"):
+		podExecOptions, ok := obj.(*corev1.PodExecOptions)
+		if !ok {
+			msg := fmt.Sprintf("expected PodExecOptions but got: %T", obj)
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  "Failure",
+					Message: msg,
+					Code:    http.StatusInternalServerError,
+				},
+			}
+		}
+
+		accessRequests, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("username = %s", admissionReview.Request.UserInfo.Username),
+		})
+		if err != nil {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  "Failure",
+					Message: fmt.Sprintf("could not list accessrequests: %s", err),
+					Code:    http.StatusInternalServerError,
+				},
+				UID: admissionReview.Request.UID,
+			}
+		}
+
+		currentUser := admissionReview.Request.UserInfo
+		logger.Debug("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
+
+		var match *accessrequestsv1.AccessRequest
+		for _, accessRequest := range accessRequests.Items {
+			logger.Debugf("uid %v %q %q", accessRequest.Spec.UserInfo.Username == currentUser.Username, accessRequest.Spec.UserInfo.Username, currentUser.Username)
+			logger.Debugf("resource %v %q %q", accessRequest.Spec.ForObject.Resource == admissionReview.Request.Resource, accessRequest.Spec.ForObject.Resource, admissionReview.Request.Resource)
+			logger.Debugf("subresource %v %q %q", accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource, accessRequest.Spec.ForObject.SubResource, admissionReview.Request.SubResource)
+			logger.Debugf("name %v %q %q", accessRequest.Spec.ForObject.Name == admissionReview.Request.Name, accessRequest.Spec.ForObject.Name, admissionReview.Request.Name)
+			logger.Debugf("namespace %v %q %q", accessRequest.Spec.ForObject.Namespace == admissionReview.Request.Namespace, accessRequest.Spec.ForObject.Namespace, admissionReview.Request.Namespace)
+			logger.Debugf("execOptions %v %q %q", equality.Semantic.DeepEqual(accessRequest.Spec.ExecOptions, podExecOptions), accessRequest.Spec.ExecOptions, podExecOptions)
+
+			logger.Debugf("%q %q", accessRequest.Spec.ExecOptions.Command, podExecOptions.Command)
+
+			if accessRequest.Spec.UserInfo.Username == currentUser.Username &&
+				accessRequest.Spec.ForObject.Resource == admissionReview.Request.Resource &&
+				accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource &&
+				accessRequest.Spec.ForObject.Name == admissionReview.Request.Name &&
+				accessRequest.Spec.ForObject.Namespace == admissionReview.Request.Namespace &&
+				equality.Semantic.DeepEqual(accessRequest.Spec.ExecOptions, podExecOptions) {
+				match = &accessRequest
+				break
+			}
+		}
+
+		if match == nil {
+			logger.Error("no match")
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure,
+					Reason: metav1.StatusReasonForbidden,
+					Code:   http.StatusForbidden,
+				},
+			}
+		}
+
+		// TODO: only allow if access + matching grant exists
+		// TODO: reject stdin
+
+		logger.Info("audit")
+		return &admissionv1.AdmissionResponse{
+			Allowed: true,
+			UID:     admissionReview.Request.UID,
+		}
+	default:
+		logger.WithError(fmt.Errorf("unhandled object of type %q", gvk.Group+"/"+gvk.Kind)).Error("unhandled object")
 		return &admissionv1.AdmissionResponse{
 			Allowed: false,
 			Result: &metav1.Status{
-				Status:  "Failure",
-				Message: fmt.Sprintf("could not list accessrequests: %s", err),
+				Status:  metav1.StatusFailure,
+				Message: "unhandled object",
 				Code:    http.StatusInternalServerError,
 			},
-			UID: admissionReview.Request.UID,
 		}
-	}
-
-	currentUser := admissionReview.Request.UserInfo
-
-	// FIXME: need to have parse `PodExecOptions` to be able to filter
-	//
-	// things to match:
-	//   - user
-	//   - forObject
-	//   - exec options
-	//
-	// var match *accessrequestsv1.AccessRequest
-	// for _, accessRequest := range accessRequests.Items {
-	// 	if accessRequest.Spec.UserInfo == currentUser &&
-	// 		accessRequest.Spec.ExecOptions == admissionReview.Request.
-	// }
-
-	logger.Info("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
-
-	return &admissionv1.AdmissionResponse{
-		Allowed: true,
-		UID:     admissionReview.Request.UID,
 	}
 }

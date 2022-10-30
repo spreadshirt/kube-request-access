@@ -19,9 +19,11 @@ spec:
   execOptions:
     apiVersion: v1
     kind: PodExecOptions
-    stdin: true
+    stdin: false
     stdout: true
-    tty: true
+    stderr: true
+    tty: false
     container: nginx
     command:
-      - /bin/sh
+      - "ls"
+      - "-l"
