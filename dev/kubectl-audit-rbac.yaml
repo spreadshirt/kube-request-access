@@ -22,6 +22,12 @@ rules:
       - create
       - delete
       - update
+  - apiGroups:
+      - spreadgroup.com
+    resources:
+      - accessrequests
+    verbs:
+      - list
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

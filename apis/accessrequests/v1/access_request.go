@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // AccessRequest is a request to a particular API.
@@ -27,4 +28,14 @@ type AccessRequestSpec struct {
 		Namespace   string                      `json:"namespace"`
 	} `json:"forObject"`
 	ExecOptions *corev1.PodExecOptions `json:"execOptions"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// AccessRequestList is a list of AccessRequest resources
+type AccessRequestList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []AccessRequest `json:"items"`
 }

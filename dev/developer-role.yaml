@@ -6,8 +6,11 @@ metadata:
 rules:
 - apiGroups:
   - ""
+  - apps
   resources:
   - pods
+  - pods/exec
+  - deployments
   verbs:
   - create
   - get

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,8 +20,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/clientcmd"
 
 	accessrequestsv1 "git.spreadomat.net/deleng/kubectl-audit/apis/accessrequests/v1"
+	accessrequestsclientv1 "git.spreadomat.net/deleng/kubectl-audit/apis/generated/clientset/versioned/typed/accessrequests/v1"
 )
 
 var scheme = runtime.NewScheme()
@@ -38,6 +41,8 @@ func addToScheme(scheme *runtime.Scheme) {
 	// crds
 	utilruntime.Must(accessrequestsv1.AddToScheme(scheme))
 }
+
+var accessRequestsClient *accessrequestsclientv1.AccessrequestsV1Client
 
 func main() {
 	app := cli.App{
@@ -77,6 +82,23 @@ func runServer(c *cli.Context) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	// if you want to change the loading rules (which files in which order), you can do so here
+
+	configOverrides := &clientcmd.ConfigOverrides{}
+	// if you want to change override values or bind them to flags, there are methods to help you
+
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	config, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return fmt.Errorf("could not find kubernetes client config: %w", err)
+	}
+
+	accessRequestsClient, err = accessrequestsclientv1.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("could not create accessrequests client: %w", err)
+	}
+
 	router := mux.NewRouter()
 	router.HandleFunc("/", handleAdmission)
 
@@ -86,7 +108,7 @@ func runServer(c *cli.Context) error {
 	)
 
 	logrus.Infof("Listening on https://%s", c.String("addr"))
-	err := http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), router)
+	err = http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), router)
 	if err != nil {
 		return err
 	}
@@ -128,7 +150,7 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 		}
 		responseAdmissionReview := &admissionv1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		responseAdmissionReview.Response = handle(logger, requestedAdmissionReview)
+		responseAdmissionReview.Response = handle(req.Context(), logger, requestedAdmissionReview)
 		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 		responseObj = responseAdmissionReview
 	default:
@@ -207,7 +229,7 @@ var admissionReviewExample = `
 }
 `
 
-func handle(logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	if logrus.GetLevel() == logrus.DebugLevel {
 		buf := new(bytes.Buffer)
 		enc := json.NewEncoder(buf)
@@ -259,6 +281,45 @@ func handle(logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) 
 			}
 		}
 	}
+
+	// TODO: only allow if access + matching grant exists
+	// TODO: reject stdin
+	// admissionReview.Request.Resource
+	// admissionReview.Request.SubResource
+	// admissionReview.Request.Name
+	// admissionReview.Request.Namespace
+
+	accessRequests, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("username = %s", admissionReview.Request.UserInfo.Username),
+	})
+	if err != nil {
+		return &admissionv1.AdmissionResponse{
+			Allowed: false,
+			Result: &metav1.Status{
+				Status:  "Failure",
+				Message: fmt.Sprintf("could not list accessrequests: %s", err),
+				Code:    http.StatusInternalServerError,
+			},
+			UID: admissionReview.Request.UID,
+		}
+	}
+
+	currentUser := admissionReview.Request.UserInfo
+
+	// FIXME: need to have parse `PodExecOptions` to be able to filter
+	//
+	// things to match:
+	//   - user
+	//   - forObject
+	//   - exec options
+	//
+	// var match *accessrequestsv1.AccessRequest
+	// for _, accessRequest := range accessRequests.Items {
+	// 	if accessRequest.Spec.UserInfo == currentUser &&
+	// 		accessRequest.Spec.ExecOptions == admissionReview.Request.
+	// }
+
+	logger.Info("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
 
 	return &admissionv1.AdmissionResponse{
 		Allowed: true,
