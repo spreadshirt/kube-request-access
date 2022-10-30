@@ -46,6 +46,7 @@ func (in *AccessRequestSpec) DeepCopyInto(out *AccessRequestSpec) {
 		*out = new(authenticationv1.UserInfo)
 		(*in).DeepCopyInto(*out)
 	}
+	out.ForObject = in.ForObject
 	if in.ExecOptions != nil {
 		in, out := &in.ExecOptions, &out.ExecOptions
 		*out = new(corev1.PodExecOptions)

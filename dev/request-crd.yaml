@@ -21,6 +21,7 @@ spec:
               type: object
               required:
                 - userInfo
+                - forObject
                 - execOptions
               properties:
                 userInfo:
@@ -30,6 +31,31 @@ spec:
                   properties:
                     username:
                       type: string
+                forObject:
+                  type: object
+                  required:
+                    - resource
+                    - subResource
+                    - name
+                    - namespace
+                  properties:
+                    resource:
+                      type: object
+                      properties:
+                        group:
+                          type: string
+                        version:
+                          type: string
+                        resource:
+                          type: string
+                    subResource:
+                      type: string
+                      pattern: "^exec$"
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                      pattern: "^default$"
                 execOptions:
                   type: object
                   x-kubernetes-embedded-resource: true
@@ -37,7 +63,7 @@ spec:
                   properties:
                     kind:
                       type: string
-                      pattern: PodExecOptions
+                      pattern: "^PodExecOptions$"
   scope: Namespaced
   names:
     # plural name to be used in the URL: /apis/<group>/<version>/<plural>

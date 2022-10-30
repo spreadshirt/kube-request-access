@@ -1,11 +1,21 @@
 apiVersion: spreadgroup.com/v1
 kind: AccessRequest
 metadata:
-  name: request-nginx-jane
+  generateName: "accessrequest-"
   namespace: default
+  labels:
+    username: jane
 spec:
   userInfo:
     username: jane
+  forObject:
+    resource:
+      group: ""
+      version: v1
+      resource: pods
+    subResource: exec
+    name: nginx-9456bbbf9-dz5ww
+    namespace: default
   execOptions:
     apiVersion: v1
     kind: PodExecOptions
