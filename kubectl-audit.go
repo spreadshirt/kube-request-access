@@ -393,7 +393,36 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 		}
 
-		// FIXME: remove access request and access grant (i.e. "burn after use")
+		// "burn" request and grant after use
+		deleteOptions := metav1.DeleteOptions{}
+		if admissionReview.Request.DryRun != nil && *admissionReview.Request.DryRun {
+			deleteOptions.DryRun = []string{"All"}
+		}
+		err = accessRequestsClient.AccessGrants(admissionReview.Request.Namespace).Delete(ctx, grantMatch.Name, deleteOptions)
+		if err != nil {
+			logger.WithError(err).Error("could not delete grant")
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure,
+					Reason: metav1.StatusReasonInternalError,
+					Code:   http.StatusForbidden,
+				},
+			}
+		}
+
+		err = accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Delete(ctx, match.Name, deleteOptions)
+		if err != nil {
+			logger.WithError(err).Error("could not delete request")
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status: metav1.StatusFailure,
+					Reason: metav1.StatusReasonInternalError,
+					Code:   http.StatusForbidden,
+				},
+			}
+		}
 
 		logger.Info("audit")
 		return &admissionv1.AdmissionResponse{
