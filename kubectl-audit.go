@@ -282,7 +282,18 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 		}
 
-		// TODO: reject stdin
+		if accessRequest.Spec.ExecOptions.Stdin || accessRequest.Spec.ExecOptions.TTY {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  "Failure",
+					Message: "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed",
+					Code:    http.StatusForbidden,
+				},
+				UID: admissionReview.Request.UID,
+			}
+		}
+
 		// TODO: consider rejecting multiple requests for the same command
 
 		return &admissionv1.AdmissionResponse{
@@ -300,6 +311,18 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 					Message: msg,
 					Code:    http.StatusInternalServerError,
 				},
+			}
+		}
+
+		if podExecOptions.Stdin || podExecOptions.TTY {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  "Failure",
+					Message: "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed",
+					Code:    http.StatusForbidden,
+				},
+				UID: admissionReview.Request.UID,
 			}
 		}
 
@@ -354,8 +377,6 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 				},
 			}
 		}
-
-		// TODO: reject stdin
 
 		accessGrants, err := accessRequestsClient.AccessGrants(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
