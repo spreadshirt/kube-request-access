@@ -20,14 +20,16 @@ type AccessRequest struct {
 
 // AccessRequestSpec specifies what is being requested access to.
 type AccessRequestSpec struct {
-	UserInfo  *authenticationv1.UserInfo `json:"userInfo"`
-	ForObject struct {
-		Resource    metav1.GroupVersionResource `json:"resource"`
-		SubResource string                      `json:"subResource"`
-		Name        string                      `json:"name"`
-		Namespace   string                      `json:"namespace"`
-	} `json:"forObject"`
-	ExecOptions *corev1.PodExecOptions `json:"execOptions"`
+	UserInfo    *authenticationv1.UserInfo `json:"userInfo"`
+	ForObject   AccessRequestForObject     `json:"forObject"`
+	ExecOptions *corev1.PodExecOptions     `json:"execOptions"`
+}
+
+type AccessRequestForObject struct {
+	Resource    metav1.GroupVersionResource `json:"resource"`
+	SubResource string                      `json:"subResource"`
+	Name        string                      `json:"name"`
+	Namespace   string                      `json:"namespace"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
