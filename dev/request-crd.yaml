@@ -13,6 +13,16 @@ spec:
       served: true
       # One and only one version must be marked as the storage version.
       storage: true
+      additionalPrinterColumns:
+        - name: user
+          jsonPath: '.spec.userInfo.username'
+          type: string
+        - name: for
+          jsonPath: '.spec.forObject.name'
+          type: string
+        - name: command
+          jsonPath: '.spec.execOptions.command'
+          type: string
       schema:
         openAPIV3Schema:
           type: object
