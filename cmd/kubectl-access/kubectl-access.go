@@ -66,6 +66,20 @@ func main() {
 container to be attached or the first container in the pod will be chosen`)
 	requestCmd.AddCommand(requestExecCmd)
 
+	grantCmd := &cobra.Command{
+		Use:          "grant REQUEST",
+		Short:        "Grant access to the given request",
+		Args:         cobra.MinimumNArgs(1),
+		SilenceUsage: true,
+		RunE: func(c *cobra.Command, args []string) error {
+			if err := accessCommand.Grant(c, args[0]); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	cmd.AddCommand(grantCmd)
+
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -204,6 +218,56 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("created accessrequest", accessRequest.Name, "(please wait for an admin to grant the permission)")
+
+	return nil
+}
+
+func (ac *accessCommand) Grant(cmd *cobra.Command, requestName string) error {
+	config, err := ac.genericOptions.ToRESTConfig()
+	if err != nil {
+		return fmt.Errorf("could not get config: %w", err)
+	}
+
+	configLoader := ac.genericOptions.ToRawKubeConfigLoader()
+	rawConfig, err := configLoader.RawConfig()
+	if err != nil {
+		return err
+	}
+	namespace, _, err := configLoader.Namespace()
+	if err != nil {
+		return err
+	}
+
+	accessRequestsClient, err := accessrequestsclientv1.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("could not create accessrequests client: %w", err)
+	}
+
+	currentContext := rawConfig.CurrentContext
+	if ac.genericOptions.Context != nil {
+		currentContext = *ac.genericOptions.Context
+	}
+	userName := rawConfig.Contexts[currentContext].AuthInfo
+
+	accessGrant := &accessrequestsv1.AccessGrant{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "grant-" + requestName,
+			Namespace: namespace,
+		},
+		Spec: accessrequestsv1.AccessGrantSpec{
+			GrantFor: requestName,
+			GrantedBy: &authenticationv1.UserInfo{
+				Username: userName,
+			},
+		},
+		Status: accessrequestsv1.AccessGrantGranted,
+	}
+	accessGrant, err = accessRequestsClient.AccessGrants(namespace).Create(context.Background(), accessGrant, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("could not create access grant: %w", err)
+	}
+
+	fmt.Println("created grant", accessGrant.Name)
 
 	return nil
 }
