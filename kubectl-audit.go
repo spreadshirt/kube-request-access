@@ -353,6 +353,14 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			roleBinding, err := kubernetesClient.RbacV1().RoleBindings(admissionReview.Request.Namespace).Create(ctx, &rbacv1.RoleBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: fmt.Sprintf("developer-exec-tmp-%s-", accessRequest.Spec.UserInfo.Username),
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "spreadgroup.com/v1",
+							Kind:       "AccessRequest",
+							UID:        accessRequest.UID,
+							Name:       accessRequest.Name,
+						},
+					},
 				},
 				RoleRef: rbacv1.RoleRef{
 					Kind: "Role",
@@ -497,22 +505,10 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 		}
 
-		// "burn" request and grant after use
+		// "burn" request after use (grant and rolebinding are deleted because they are owned by the access request)
 		deleteOptions := metav1.DeleteOptions{}
 		if admissionReview.Request.DryRun != nil && *admissionReview.Request.DryRun {
 			deleteOptions.DryRun = []string{"All"}
-		}
-		err = accessRequestsClient.AccessGrants(admissionReview.Request.Namespace).Delete(ctx, grantMatch.Name, deleteOptions)
-		if err != nil {
-			logger.WithError(err).Error("could not delete grant")
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status: metav1.StatusFailure,
-					Reason: metav1.StatusReasonInternalError,
-					Code:   http.StatusForbidden,
-				},
-			}
 		}
 
 		err = accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Delete(ctx, match.Name, deleteOptions)
@@ -527,9 +523,6 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 				},
 			}
 		}
-
-		// FIXME: delete rolebinding (if it exists) as well
-		// TODO: automate deletions using `managedObjects`
 
 		logger.Info("audit")
 		return &admissionv1.AdmissionResponse{

@@ -261,13 +261,28 @@ func (ac *accessCommand) Grant(cmd *cobra.Command, requestName string) error {
 	}
 	userName := rawConfig.Contexts[currentContext].AuthInfo
 
+	accessRequest, err := accessRequestsClient.AccessRequests(namespace).Get(context.Background(), requestName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("could not get accessrequest: %w", err)
+	}
+
+	// blockOwnerDeletion := true
 	accessGrant := &accessrequestsv1.AccessGrant{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "grant-" + requestName,
+			Name:      "grant-" + accessRequest.Name,
 			Namespace: namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "spreadgroup.com/v1",
+					Kind:       "AccessRequest",
+					UID:        accessRequest.UID,
+					Name:       accessRequest.Name,
+					// BlockOwnerDeletion: &blockOwnerDeletion,
+				},
+			},
 		},
 		Spec: accessrequestsv1.AccessGrantSpec{
-			GrantFor: requestName,
+			GrantFor: accessRequest.Name,
 			GrantedBy: &authenticationv1.UserInfo{
 				Username: userName,
 			},
