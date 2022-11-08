@@ -119,7 +119,7 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var podName string
+	var selectedPod *corev1.Pod
 
 	// FIXME: find out how to do this officially (there must be a function for parsing names in Kubernetes?)
 	var kind string
@@ -143,7 +143,7 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("could not get pods: %w", err)
 		}
 
-		podName = pod.Name
+		selectedPod = pod
 	case "deployment", "deployments":
 		// lookup first pod in deployment (like `kubectl exec` does)
 		deployment, err := client.AppsV1().Deployments(namespace).Get(context.Background(), name, metav1.GetOptions{})
@@ -164,10 +164,18 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("%q has no pods", target)
 		}
 
-		podName = pods.Items[0].Name
+		selectedPod = &pods.Items[0]
 	default:
 		return fmt.Errorf("unsupported kind %q", kind)
 
+	}
+
+	// default to first container if none is set (like `kubectl exec`)
+	if ac.execOptions.Container == "" {
+		if len(selectedPod.Spec.Containers) == 0 {
+			return fmt.Errorf("no containers in pod %q", selectedPod.Name)
+		}
+		ac.execOptions.Container = selectedPod.Spec.Containers[0].Name
 	}
 
 	accessRequestsClient, err := accessrequestsclientv1.NewForConfig(config)
@@ -184,6 +192,9 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 	accessRequest := &accessrequestsv1.AccessRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("access-exec-%s-%s", userName, ac.execOptions.Command[0]),
+			Labels: map[string]string{
+				"username": userName,
+			},
 		},
 		Spec: accessrequestsv1.AccessRequestSpec{
 			UserInfo: &authenticationv1.UserInfo{
@@ -192,11 +203,12 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 			ForObject: accessrequestsv1.AccessRequestForObject{
 				Resource: metav1.GroupVersionResource{
 					Group:    "",
+					Version:  "v1",
 					Resource: "pods",
 				},
 				SubResource: "exec",
 				Namespace:   namespace,
-				Name:        podName,
+				Name:        selectedPod.Name,
 			},
 			ExecOptions: &corev1.PodExecOptions{
 				TypeMeta: metav1.TypeMeta{
