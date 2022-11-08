@@ -22,12 +22,28 @@ rules:
       - create
       - delete
       - update
+  # allow granting devs the permission
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    verbs:
+      - create
+  # needs to hold the same permission as the role, otherwise we get "is attempting to grant RBAC permissions not currently held"
+  - apiGroups:
+      - ""
+    resources:
+      - pods/exec
+    verbs:
+      - create
+  # crd management
   - apiGroups:
       - spreadgroup.com
     resources:
       - accessrequests
       - accessgrants
     verbs:
+      - get
       - list
       - delete
 ---

@@ -9,6 +9,7 @@ resources:
   - nginx-deployment.yaml
   # example role for "developers" locally
   - developer-role.yaml
+  - developer-exec-role.yaml
 configMapGenerator:
   - name: kubectl-audit-certs
     files:

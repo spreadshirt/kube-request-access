@@ -34,6 +34,7 @@ spec:
             - "--addr=0.0.0.0:8443"
             - "--cert-file=/ssl/localhost.crt"
             - "--key-file=/ssl/localhost.key"
+            - "--granted-role-name=developer-exec"
             - "--verbose"
           ports:
             - containerPort: 8443

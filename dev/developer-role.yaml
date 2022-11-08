@@ -9,7 +9,6 @@ rules:
   - apps
   resources:
   - pods
-  - pods/exec
   - deployments
   verbs:
   - create

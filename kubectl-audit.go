@@ -16,11 +16,13 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
 	accessrequestsv1 "git.spreadomat.net/deleng/kubectl-audit/apis/accessrequests/v1"
@@ -43,7 +45,15 @@ func addToScheme(scheme *runtime.Scheme) {
 	utilruntime.Must(accessrequestsv1.AddToScheme(scheme))
 }
 
+var kubernetesClient *kubernetes.Clientset
 var accessRequestsClient *accessrequestsclientv1.AccessrequestsV1Client
+
+// GrantedRoleName is the role that is temporarily given to users when their
+// access request was granted.
+//
+// If no role name is set then it a role is already assumed to exist, created
+// by some other system.
+var GrantedRoleName = ""
 
 func main() {
 	app := cli.App{
@@ -64,10 +74,16 @@ func main() {
 				Name:  "key-file",
 				Value: "dev/localhost.key",
 				Usage: "HTTPS key file",
-			}, &cli.BoolFlag{
+			},
+			&cli.BoolFlag{
 				Name:  "verbose",
 				Value: false,
 				Usage: "Enable debug logging",
+			},
+			&cli.StringFlag{
+				Name:  "granted-role-name",
+				Value: "",
+				Usage: "Name of the role that is given to a user temporarily when a request is granted",
 			},
 		},
 		Action: runServer,
@@ -83,6 +99,8 @@ func runServer(c *cli.Context) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	GrantedRoleName = c.String("granted-role-name")
+
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	// if you want to change the loading rules (which files in which order), you can do so here
 
@@ -93,6 +111,11 @@ func runServer(c *cli.Context) error {
 	config, err := kubeConfig.ClientConfig()
 	if err != nil {
 		return fmt.Errorf("could not find kubernetes client config: %w", err)
+	}
+
+	kubernetesClient, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("could not create kubernetes client: %w", err)
 	}
 
 	accessRequestsClient, err = accessrequestsclientv1.NewForConfig(config)
@@ -300,6 +323,66 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			Allowed: true,
 			UID:     admissionReview.Request.UID,
 		}
+	case accessrequestsv1.SchemeGroupVersion.WithKind("AccessGrant"):
+		accessGrant, ok := obj.(*accessrequestsv1.AccessGrant)
+		if !ok {
+			msg := fmt.Sprintf("expected v1.AccessRequest but got: %T", obj)
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  "Failure",
+					Message: msg,
+					Code:    http.StatusInternalServerError,
+				},
+			}
+		}
+
+		accessRequest, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Get(ctx, accessGrant.Spec.GrantFor, metav1.GetOptions{})
+		if err != nil {
+			return &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  "Failure",
+					Message: fmt.Sprintf("could not find matching access request: %s", err),
+					Code:    http.StatusInternalServerError,
+				},
+			}
+		}
+
+		if GrantedRoleName != "" {
+			roleBinding, err := kubernetesClient.RbacV1().RoleBindings(admissionReview.Request.Namespace).Create(ctx, &rbacv1.RoleBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: fmt.Sprintf("developer-exec-tmp-%s-", accessRequest.Spec.UserInfo.Username),
+				},
+				RoleRef: rbacv1.RoleRef{
+					Kind: "Role",
+					Name: GrantedRoleName,
+				},
+				Subjects: []rbacv1.Subject{
+					{
+						Kind: "User",
+						Name: accessRequest.Spec.UserInfo.Username,
+					},
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				return &admissionv1.AdmissionResponse{
+					Allowed: false,
+					Result: &metav1.Status{
+						Status:  "Failure",
+						Message: fmt.Sprintf("could not create role binding: %s", err),
+						Code:    http.StatusInternalServerError,
+					},
+				}
+			}
+
+			logger.Debugf("created rolebinding %q (with role %q) to account %q", roleBinding.Name, GrantedRoleName, accessRequest.Spec.UserInfo.Username)
+		}
+
+		return &admissionv1.AdmissionResponse{
+			Allowed: true,
+			UID:     admissionReview.Request.UID,
+		}
 	case corev1.SchemeGroupVersion.WithKind("PodExecOptions"):
 		podExecOptions, ok := obj.(*corev1.PodExecOptions)
 		if !ok {
@@ -444,6 +527,9 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 				},
 			}
 		}
+
+		// FIXME: delete rolebinding (if it exists) as well
+		// TODO: automate deletions using `managedObjects`
 
 		logger.Info("audit")
 		return &admissionv1.AdmissionResponse{

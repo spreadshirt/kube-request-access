@@ -12,7 +12,7 @@ webhooks:
     scope:       "Namespaced"
   - apiGroups: ["spreadgroup.com"]
     apiVersions: ["v1"]
-    resources: ["accessrequests"]
+    resources: ["accessrequests", "accessgrants"]
     operations: ["CREATE"]
     scope: Namespaced
   clientConfig:
