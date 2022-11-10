@@ -524,7 +524,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 		}
 
-		logger.Info("audit")
+		logger.Info("audit") // TODO: which format do we want?
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,
 			UID:     admissionReview.Request.UID,

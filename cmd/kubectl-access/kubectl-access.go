@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -10,7 +11,9 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/cli-runtime/pkg/printers"
 	"k8s.io/client-go/kubernetes"
 
 	accessrequestsv1 "git.spreadomat.net/deleng/kubectl-audit/apis/accessrequests/v1"
@@ -264,6 +267,23 @@ func (ac *accessCommand) Grant(cmd *cobra.Command, requestName string) error {
 	accessRequest, err := accessRequestsClient.AccessRequests(namespace).Get(context.Background(), requestName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("could not get accessrequest: %w", err)
+	}
+
+	// TODO: get this set automatically by the client
+	accessRequest.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Group: "spreadgroup.com", Kind: "AccessRequest"})
+	printer := &printers.YAMLPrinter{}
+	err = printer.PrintObj(accessRequest, os.Stdout)
+	if err != nil {
+		return fmt.Errorf("could not print object: %w", err)
+	}
+
+	fmt.Print("Grant access to the request above ([yN])? ")
+	scanner := bufio.NewScanner(os.Stdin)
+	if !scanner.Scan() {
+		return fmt.Errorf("no answer")
+	}
+	if scanner.Text() != "y" && scanner.Text() != "Y" {
+		return fmt.Errorf("access not granted, exiting")
 	}
 
 	// blockOwnerDeletion := true
