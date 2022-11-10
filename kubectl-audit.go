@@ -187,7 +187,31 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 		}
 		responseAdmissionReview := &admissionv1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		responseAdmissionReview.Response = handle(req.Context(), logger, requestedAdmissionReview)
+		allowed, msg, code, err := handle(req.Context(), logger, requestedAdmissionReview)
+		if err != nil {
+			logger.WithError(err).Error("error handling admission review")
+			responseAdmissionReview.Response = &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Status:  metav1.StatusFailure,
+					Message: msg,
+					Code:    code,
+				},
+			}
+		} else {
+			status := metav1.StatusFailure
+			if allowed {
+				status = metav1.StatusSuccess
+			}
+			responseAdmissionReview.Response = &admissionv1.AdmissionResponse{
+				Allowed: allowed,
+				Result: &metav1.Status{
+					Status:  status,
+					Message: msg,
+					Code:    code,
+				},
+			}
+		}
 		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 		responseObj = responseAdmissionReview
 	default:
@@ -266,7 +290,7 @@ var admissionReviewExample = `
 }
 `
 
-func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) (allowed bool, response string, code int32, err error) {
 	if logrus.GetLevel() == logrus.DebugLevel {
 		buf := new(bytes.Buffer)
 		enc := json.NewEncoder(buf)
@@ -277,89 +301,47 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 	deserializer := codecs.UniversalDeserializer()
 	obj, gvk, err := deserializer.Decode(admissionReview.Request.Object.Raw, nil, nil)
 	if err != nil {
-		msg := fmt.Sprintf("Request could not be decoded: %v", err)
-		logger.Error(msg)
-		return &admissionv1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Status:  "Failure",
-				Message: msg,
-				Code:    http.StatusInternalServerError,
-			},
-		}
+		err = fmt.Errorf("Request could not be decoded: %w", err)
+		return false, "", http.StatusInternalServerError, err
 	}
 
 	switch *gvk {
 	case accessrequestsv1.SchemeGroupVersion.WithKind("AccessRequest"):
 		accessRequest, ok := obj.(*accessrequestsv1.AccessRequest)
 		if !ok {
-			msg := fmt.Sprintf("expected v1.AccessRequest but got: %T", obj)
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status:  "Failure",
-					Message: msg,
-					Code:    http.StatusInternalServerError,
-				},
-			}
+			err := fmt.Errorf("expected v1.AccessRequest but got: %T", obj)
+			return false, "", http.StatusInternalServerError, err
 		}
 
 		if admissionReview.Request.UserInfo.Username != accessRequest.Spec.UserInfo.Username {
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status: "Failure",
-					Message: fmt.Sprintf("you can only request access for yourself (requested for %q, but authenticated as %q)",
-						accessRequest.Spec.UserInfo.Username,
-						admissionReview.Request.UserInfo.Username),
-					Code: http.StatusForbidden,
-				},
-				UID: admissionReview.Request.UID,
-			}
+			msg := fmt.Sprintf("you can only request access for yourself (requested for %q, but authenticated as %q)",
+				accessRequest.Spec.UserInfo.Username,
+				admissionReview.Request.UserInfo.Username)
+			return false, msg, http.StatusForbidden, nil
 		}
 
 		if accessRequest.Spec.ExecOptions.Stdin || accessRequest.Spec.ExecOptions.TTY {
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status:  "Failure",
-					Message: "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed",
-					Code:    http.StatusForbidden,
-				},
-				UID: admissionReview.Request.UID,
-			}
+			msg := "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed"
+			return false, msg, http.StatusForbidden, err
 		}
 
 		// TODO: consider rejecting multiple requests for the same command
 
-		return &admissionv1.AdmissionResponse{
-			Allowed: true,
-			UID:     admissionReview.Request.UID,
-		}
+		return true, "", http.StatusOK, nil
 	case accessrequestsv1.SchemeGroupVersion.WithKind("AccessGrant"):
+		// NOTE: we return the error to the user here, because they are expected to be admins and are allowed this information
+
 		accessGrant, ok := obj.(*accessrequestsv1.AccessGrant)
 		if !ok {
-			msg := fmt.Sprintf("expected v1.AccessRequest but got: %T", obj)
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status:  "Failure",
-					Message: msg,
-					Code:    http.StatusInternalServerError,
-				},
-			}
+			err := fmt.Errorf("expected v1.AccessRequest but got: %T", obj)
+			return false, err.Error(), http.StatusInternalServerError, err
+
 		}
 
 		accessRequest, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Get(ctx, accessGrant.Spec.GrantFor, metav1.GetOptions{})
 		if err != nil {
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status:  "Failure",
-					Message: fmt.Sprintf("could not find matching access request: %s", err),
-					Code:    http.StatusInternalServerError,
-				},
-			}
+			err = fmt.Errorf("could not find matching access request: %w", err)
+			return false, err.Error(), http.StatusBadRequest, err
 		}
 
 		if GrantedRoleName != "" {
@@ -387,35 +369,19 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 				},
 			}, metav1.CreateOptions{})
 			if err != nil {
-				return &admissionv1.AdmissionResponse{
-					Allowed: false,
-					Result: &metav1.Status{
-						Status:  "Failure",
-						Message: fmt.Sprintf("could not create role binding: %s", err),
-						Code:    http.StatusInternalServerError,
-					},
-				}
+				err = fmt.Errorf("could not create role binding: %s", err)
+				return false, err.Error(), http.StatusInternalServerError, err
 			}
 
 			logger.Debugf("created rolebinding %q (with role %q) to account %q", roleBinding.Name, GrantedRoleName, accessRequest.Spec.UserInfo.Username)
 		}
 
-		return &admissionv1.AdmissionResponse{
-			Allowed: true,
-			UID:     admissionReview.Request.UID,
-		}
+		return true, "", http.StatusOK, nil
 	case corev1.SchemeGroupVersion.WithKind("PodExecOptions"):
 		podExecOptions, ok := obj.(*corev1.PodExecOptions)
 		if !ok {
-			msg := fmt.Sprintf("expected PodExecOptions but got: %T", obj)
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status:  "Failure",
-					Message: msg,
-					Code:    http.StatusInternalServerError,
-				},
-			}
+			err := fmt.Errorf("expected PodExecOptions but got: %T", obj)
+			return false, "", http.StatusInternalServerError, err
 		}
 
 		if AlwaysAllowedGroupName != "" {
@@ -429,36 +395,18 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 
 			if isAlwaysAllowed {
 				logger.Info("admin audit", podExecOptions)
-				return &admissionv1.AdmissionResponse{
-					Allowed: true,
-					UID:     admissionReview.Request.UID,
-				}
+				return true, "", http.StatusOK, nil
 			}
 		}
 
 		if podExecOptions.Stdin || podExecOptions.TTY {
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status:  "Failure",
-					Message: "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed",
-					Code:    http.StatusForbidden,
-				},
-				UID: admissionReview.Request.UID,
-			}
+			return false, "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed", http.StatusForbidden, nil
 		}
 
 		accessRequests, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status:  "Failure",
-					Message: fmt.Sprintf("could not list accessrequests: %s", err),
-					Code:    http.StatusInternalServerError,
-				},
-				UID: admissionReview.Request.UID,
-			}
+			err = fmt.Errorf("could not list accessrequests: %w", err)
+			return false, "", http.StatusInternalServerError, err
 		}
 
 		currentUser := admissionReview.Request.UserInfo
@@ -488,27 +436,13 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 
 		if match == nil {
 			logger.Error("no match")
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status: metav1.StatusFailure,
-					Reason: metav1.StatusReasonForbidden,
-					Code:   http.StatusForbidden,
-				},
-			}
+			return false, "", http.StatusForbidden, nil
 		}
 
 		accessGrants, err := accessRequestsClient.AccessGrants(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status:  "Failure",
-					Message: fmt.Sprintf("could not list accessgrants: %s", err),
-					Code:    http.StatusInternalServerError,
-				},
-				UID: admissionReview.Request.UID,
-			}
+			err = fmt.Errorf("could not list accessgrants: %w", err)
+			return false, "", http.StatusInternalServerError, err
 		}
 
 		var grantMatch *accessrequestsv1.AccessGrant
@@ -524,14 +458,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 
 		if grantMatch == nil {
 			logger.Error("no grant match")
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status: metav1.StatusFailure,
-					Reason: metav1.StatusReasonForbidden,
-					Code:   http.StatusForbidden,
-				},
-			}
+			return false, "", http.StatusForbidden, nil
 		}
 
 		// "burn" request after use (grant and rolebinding are deleted because they are owned by the access request)
@@ -542,31 +469,14 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 
 		err = accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Delete(ctx, match.Name, deleteOptions)
 		if err != nil {
-			logger.WithError(err).Error("could not delete request")
-			return &admissionv1.AdmissionResponse{
-				Allowed: false,
-				Result: &metav1.Status{
-					Status: metav1.StatusFailure,
-					Reason: metav1.StatusReasonInternalError,
-					Code:   http.StatusForbidden,
-				},
-			}
+			err = fmt.Errorf("could not delete request: %w", err)
+			return false, "", http.StatusInternalServerError, err
 		}
 
 		logger.Info("audit", podExecOptions) // TODO: which format do we want?
-		return &admissionv1.AdmissionResponse{
-			Allowed: true,
-			UID:     admissionReview.Request.UID,
-		}
+		return true, "", http.StatusOK, nil
 	default:
-		logger.WithError(fmt.Errorf("unhandled object of type %q", gvk.Group+"/"+gvk.Kind)).Error("unhandled object")
-		return &admissionv1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Status:  metav1.StatusFailure,
-				Message: "unhandled object",
-				Code:    http.StatusInternalServerError,
-			},
-		}
+		err := fmt.Errorf("unhandled object of type %q", gvk.Group+"/"+gvk.Kind)
+		return false, "unhandled object", http.StatusInternalServerError, err
 	}
 }
