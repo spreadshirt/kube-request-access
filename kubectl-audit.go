@@ -417,9 +417,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 		}
 
-		accessRequests, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("username = %s", admissionReview.Request.UserInfo.Username),
-		})
+		accessRequests, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return &admissionv1.AdmissionResponse{
 				Allowed: false,
