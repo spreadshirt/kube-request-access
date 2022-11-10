@@ -32,7 +32,7 @@ func main() {
 		Short: "Request and grant access to `kubectl exec` and friends",
 		Example: `
 	# request access
-	kubectl access request exec deployment/api-core ls -l /tmp
+	kubectl access request exec deployment/nginx ls -l /tmp
 
 	# grant access
 	kubectl access grant <name>
@@ -316,17 +316,5 @@ func (ac *accessCommand) Grant(cmd *cobra.Command, requestName string) error {
 
 	fmt.Println("created grant", accessGrant.Name)
 
-	return nil
-}
-
-func Complete(cmd *cobra.Command, args []string) error {
-	return nil
-}
-
-func Validate() error {
-	return nil
-}
-
-func Run() error {
 	return nil
 }
