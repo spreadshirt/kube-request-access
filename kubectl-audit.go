@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"git.spreadomat.net/go/logging"
 	"github.com/gorilla/mux"
@@ -47,6 +48,9 @@ func addToScheme(scheme *runtime.Scheme) {
 
 var kubernetesClient *kubernetes.Clientset
 var accessRequestsClient *accessrequestsclientv1.AccessrequestsV1Client
+
+// MaxValidFor is the maximum validity of an access request.
+const MaxValidFor = 12 * time.Hour
 
 // GrantedRoleName is the role that is temporarily given to users when their
 // access request was granted.
@@ -320,6 +324,19 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			return false, msg, http.StatusForbidden, nil
 		}
 
+		if accessRequest.Spec.ValidFor != "" {
+			validFor, err := time.ParseDuration(accessRequest.Spec.ValidFor)
+			if err != nil {
+				err = fmt.Errorf("invalid validFor duration: %w", err)
+				return false, err.Error(), http.StatusBadRequest, nil
+			}
+
+			if validFor > MaxValidFor {
+				msg := "requests can be valid for at most 24 hours (24h)"
+				return false, msg, http.StatusBadRequest, nil
+			}
+		}
+
 		if accessRequest.Spec.ExecOptions.Stdin || accessRequest.Spec.ExecOptions.TTY {
 			msg := "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed"
 			return false, msg, http.StatusForbidden, err
@@ -461,16 +478,41 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			return false, "", http.StatusForbidden, nil
 		}
 
-		// "burn" request after use (grant and rolebinding are deleted because they are owned by the access request)
-		deleteOptions := metav1.DeleteOptions{}
-		if admissionReview.Request.DryRun != nil && *admissionReview.Request.DryRun {
-			deleteOptions.DryRun = []string{"All"}
+		var validUntil time.Time
+		if match.Spec.ValidFor != "" {
+			validFor, err := time.ParseDuration(match.Spec.ValidFor)
+			if err != nil {
+				// should have been caught earlier in AccessRequest validation, error out
+				err = fmt.Errorf("invalid validFor duration: %w", err)
+				return false, err.Error(), http.StatusInternalServerError, err
+			}
+
+			validUntil = grantMatch.CreationTimestamp.Time.Add(validFor)
+		} else {
+			// fake so the validity check does not error out
+			validUntil = time.Now().Add(1 * time.Minute)
 		}
 
-		err = accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Delete(ctx, match.Name, deleteOptions)
-		if err != nil {
-			err = fmt.Errorf("could not delete request: %w", err)
-			return false, "", http.StatusInternalServerError, err
+		hasExpired := validUntil.Before(time.Now())
+
+		if match.Spec.ValidFor == "" || hasExpired {
+			// "burn" request after use (grant and rolebinding are deleted because they are owned by the access request)
+			deleteOptions := metav1.DeleteOptions{}
+			if admissionReview.Request.DryRun != nil && *admissionReview.Request.DryRun {
+				deleteOptions.DryRun = []string{"All"}
+			}
+
+			err = accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Delete(ctx, match.Name, deleteOptions)
+			if err != nil {
+				err = fmt.Errorf("could not delete request: %w", err)
+				return false, "", http.StatusInternalServerError, err
+			}
+		}
+
+		if hasExpired {
+			msg := "access request has expired"
+			err := fmt.Errorf("%s: %s is after %s", msg, validUntil, time.Now())
+			return false, msg, http.StatusForbidden, err
 		}
 
 		logger.Info("audit", podExecOptions) // TODO: which format do we want?

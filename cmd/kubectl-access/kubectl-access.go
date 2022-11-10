@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -67,6 +68,7 @@ func main() {
 		}}
 	requestExecCmd.Flags().StringVarP(&accessCommand.execOptions.Container, "container", "c", "", `Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the
 container to be attached or the first container in the pod will be chosen`)
+	requestExecCmd.Flags().DurationVarP(&accessCommand.validFor, "valid-for", "d", 0, "Amount of the that the access is requested for (command will only be allowed once if not specified)")
 	requestCmd.AddCommand(requestExecCmd)
 
 	grantCmd := &cobra.Command{
@@ -92,6 +94,7 @@ type accessCommand struct {
 	genericOptions *genericclioptions.ConfigFlags
 
 	execOptions *execOptions
+	validFor    time.Duration
 }
 
 type execOptions struct {
@@ -227,6 +230,11 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 			},
 		},
 	}
+
+	if ac.validFor != 0 {
+		accessRequest.Spec.ValidFor = ac.validFor.Round(time.Minute).String()
+	}
+
 	accessRequest, err = accessRequestsClient.AccessRequests(namespace).Create(context.Background(), accessRequest, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("could not create access request: %w", err)

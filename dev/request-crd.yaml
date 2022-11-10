@@ -23,6 +23,9 @@ spec:
         - name: command
           jsonPath: '.spec.execOptions.command'
           type: string
+        - name: duration
+          jsonPath: '.spec.validFor'
+          type: string
       schema:
         openAPIV3Schema:
           type: object
@@ -66,6 +69,18 @@ spec:
                     namespace:
                       type: string
                       pattern: "^default$"
+                validFor:
+                  description: |
+                    Duration that this exec should be granted for.  If granted the duration will be the creation time of the grant + this duration.
+                
+                    The server implementation currently only allows a maximum validity of 12 hours, because long-running access probably needs other
+                    solutions.
+                  type: string
+                  pattern: "[0-9]+(m|h)" # go duration, but restricted because we don't really need lower precision than a millisecond
+                  example:
+                    - "30m"
+                    - "1h"
+                    - "12h"
                 execOptions:
                   type: object
                   x-kubernetes-embedded-resource: true

@@ -16,6 +16,7 @@ spec:
     subResource: exec
     name: nginx-9456bbbf9-dz5ww
     namespace: default
+  validFor: 1h
   execOptions:
     apiVersion: v1
     kind: PodExecOptions

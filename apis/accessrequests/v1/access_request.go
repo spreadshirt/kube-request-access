@@ -22,6 +22,7 @@ type AccessRequest struct {
 type AccessRequestSpec struct {
 	UserInfo    *authenticationv1.UserInfo `json:"userInfo"`
 	ForObject   AccessRequestForObject     `json:"forObject"`
+	ValidFor    string                     `json:"validFor,omitempty"`
 	ExecOptions *corev1.PodExecOptions     `json:"execOptions"`
 }
 
