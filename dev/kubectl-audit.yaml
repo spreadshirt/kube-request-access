@@ -35,6 +35,7 @@ spec:
             - "--cert-file=/ssl/localhost.crt"
             - "--key-file=/ssl/localhost.key"
             - "--granted-role-name=developer-exec"
+            - "--always-allowed-group-name=system:masters"
             - "--verbose"
           ports:
             - containerPort: 8443

@@ -55,6 +55,13 @@ var accessRequestsClient *accessrequestsclientv1.AccessrequestsV1Client
 // by some other system.
 var GrantedRoleName = ""
 
+// AlwaysAllowedGroupName can be set to always allow users with the given
+// group.  They won't need to request or grant and will always be allowed.
+//
+// Additionally they won't have the regular restrictions applied, like exec
+// with stdin or tty set for interactive commands.
+var AlwaysAllowedGroupName = ""
+
 func main() {
 	app := cli.App{
 		Name:  "kubectl-audit",
@@ -85,6 +92,11 @@ func main() {
 				Value: "",
 				Usage: "Name of the role that is given to a user temporarily when a request is granted",
 			},
+			&cli.StringFlag{
+				Name:  "always-allowed-group-name",
+				Value: "",
+				Usage: "Name of the group whose members will be allowed to execute commands without a request and grant",
+			},
 		},
 		Action: runServer,
 	}
@@ -100,6 +112,7 @@ func runServer(c *cli.Context) error {
 	}
 
 	GrantedRoleName = c.String("granted-role-name")
+	AlwaysAllowedGroupName = c.String("always-allowed-group-name")
 
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	// if you want to change the loading rules (which files in which order), you can do so here
@@ -405,6 +418,24 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 		}
 
+		if AlwaysAllowedGroupName != "" {
+			isAlwaysAllowed := false
+			for _, group := range admissionReview.Request.UserInfo.Groups {
+				if group == AlwaysAllowedGroupName {
+					isAlwaysAllowed = true
+					break
+				}
+			}
+
+			if isAlwaysAllowed {
+				logger.Info("admin audit", podExecOptions)
+				return &admissionv1.AdmissionResponse{
+					Allowed: true,
+					UID:     admissionReview.Request.UID,
+				}
+			}
+		}
+
 		if podExecOptions.Stdin || podExecOptions.TTY {
 			return &admissionv1.AdmissionResponse{
 				Allowed: false,
@@ -431,7 +462,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 		}
 
 		currentUser := admissionReview.Request.UserInfo
-		logger.Debug("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
+		logger.Debugf("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
 
 		var match *accessrequestsv1.AccessRequest
 		for _, accessRequest := range accessRequests.Items {
@@ -522,7 +553,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 		}
 
-		logger.Info("audit") // TODO: which format do we want?
+		logger.Info("audit", podExecOptions) // TODO: which format do we want?
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,
 			UID:     admissionReview.Request.UID,
