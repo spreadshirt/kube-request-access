@@ -55,9 +55,9 @@ func main() {
 	cmd.AddCommand(requestCmd)
 
 	requestExecCmd := &cobra.Command{
-		Use:          "exec (POD | TYPE/NAME) [-c CONTAINER] [flags] -- COMMAND [args...] [options]",
+		Use:          "exec (POD | TYPE/NAME) [-c CONTAINER] [flags] -- [COMMAND] [args...] [options]",
 		Short:        "Request access to execute a command in a container.",
-		Args:         cobra.MinimumNArgs(2),
+		Args:         cobra.MinimumNArgs(1),
 		SilenceUsage: true,
 		RunE: func(c *cobra.Command, args []string) error {
 			accessCommand.execOptions.Command = args[1:]
@@ -197,7 +197,7 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 
 	accessRequest := &accessrequestsv1.AccessRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("access-exec-%s-%s", userName, ac.execOptions.Command[0]),
+			GenerateName: fmt.Sprintf("access-exec-%s-", userName),
 			Labels: map[string]string{
 				"username": userName,
 			},

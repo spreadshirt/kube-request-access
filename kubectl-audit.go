@@ -440,6 +440,11 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 
 			logger.Debugf("%q %q", accessRequest.Spec.ExecOptions.Command, podExecOptions.Command)
 
+			// allow any command if no command was specified in request
+			if len(accessRequest.Spec.ExecOptions.Command) == 0 {
+				podExecOptions.Command = nil
+			}
+
 			if accessRequest.Spec.UserInfo.Username == currentUser.Username &&
 				accessRequest.Spec.ForObject.Resource == admissionReview.Request.Resource &&
 				accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource &&
