@@ -10,7 +10,6 @@ import (
 	"os"
 	"time"
 
-	"git.spreadomat.net/go/logging"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -143,10 +142,7 @@ func runServer(c *cli.Context) error {
 	router := mux.NewRouter()
 	router.HandleFunc("/", handleAdmission)
 
-	accessLogger := logging.NewAccessLogger(nil, nil, nil)
-	router.Use(
-		accessLogger.Middleware,
-	)
+	// TODO: log requests somehow™, maybe https://pkg.go.dev/github.com/gorilla/handlers#CustomLoggingHandler?
 
 	logrus.Infof("Listening on https://%s", c.String("addr"))
 	err = http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), router)
@@ -157,8 +153,6 @@ func runServer(c *cli.Context) error {
 }
 
 func handleAdmission(w http.ResponseWriter, req *http.Request) {
-	logger := logging.LogForRequest(req)
-
 	var body []byte
 	if req.Body != nil {
 		if data, err := io.ReadAll(req.Body); err == nil {
@@ -169,14 +163,14 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 	// verify the content type is accurate
 	contentType := req.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		logger.Errorf("contentType=%s, expect application/json", contentType)
+		logrus.Errorf("contentType=%s, expect application/json", contentType)
 		return
 	}
 	deserializer := codecs.UniversalDeserializer()
 	obj, gvk, err := deserializer.Decode(body, nil, nil)
 	if err != nil {
 		msg := fmt.Sprintf("Request could not be decoded: %v", err)
-		logger.Error(msg)
+		logrus.Error(msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -186,14 +180,14 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 	case admissionv1.SchemeGroupVersion.WithKind("AdmissionReview"):
 		requestedAdmissionReview, ok := obj.(*admissionv1.AdmissionReview)
 		if !ok {
-			logger.Errorf("Expected v1.AdmissionReview but got: %T", obj)
+			logrus.Errorf("Expected v1.AdmissionReview but got: %T", obj)
 			return
 		}
 		responseAdmissionReview := &admissionv1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		allowed, msg, code, err := handle(req.Context(), logger, requestedAdmissionReview)
+		allowed, msg, code, err := handle(req.Context(), requestedAdmissionReview)
 		if err != nil {
-			logger.WithError(err).Error("error handling admission review")
+			logrus.WithError(err).Error("error handling admission review")
 			responseAdmissionReview.Response = &admissionv1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
@@ -220,7 +214,7 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 		responseObj = responseAdmissionReview
 	default:
 		msg := fmt.Sprintf("Unsupported group version kind: %v", gvk)
-		logger.Error(msg)
+		logrus.Error(msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -228,13 +222,13 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 	// klog.V(2).Info(fmt.Sprintf("sending response: %v", responseObj))
 	respBytes, err := json.Marshal(responseObj)
 	if err != nil {
-		logger.Error(err)
+		logrus.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(respBytes); err != nil {
-		logger.Error(err)
+		logrus.Error(err)
 	}
 }
 
@@ -294,12 +288,12 @@ var admissionReviewExample = `
 }
 `
 
-func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissionv1.AdmissionReview) (allowed bool, response string, code int32, err error) {
+func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (allowed bool, response string, code int32, err error) {
 	if logrus.GetLevel() == logrus.DebugLevel {
 		buf := new(bytes.Buffer)
 		enc := json.NewEncoder(buf)
 		_ = enc.Encode(admissionReview)
-		logger.WithField("admission-review", buf.String()).Debug("got admission review")
+		logrus.WithField("admission-review", buf.String()).Debug("got admission review")
 	}
 
 	deserializer := codecs.UniversalDeserializer()
@@ -390,7 +384,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 				return false, err.Error(), http.StatusInternalServerError, err
 			}
 
-			logger.Debugf("created rolebinding %q (with role %q) to account %q", roleBinding.Name, GrantedRoleName, accessRequest.Spec.UserInfo.Username)
+			logrus.Debugf("created rolebinding %q (with role %q) to account %q", roleBinding.Name, GrantedRoleName, accessRequest.Spec.UserInfo.Username)
 		}
 
 		return true, "", http.StatusOK, nil
@@ -411,7 +405,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			}
 
 			if isAlwaysAllowed {
-				logger.Info("admin audit", podExecOptions)
+				logrus.Info("admin audit", podExecOptions)
 				return true, "", http.StatusOK, nil
 			}
 		}
@@ -427,18 +421,18 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 		}
 
 		currentUser := admissionReview.Request.UserInfo
-		logger.Debugf("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
+		logrus.Debugf("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
 
 		var match *accessrequestsv1.AccessRequest
 		for _, accessRequest := range accessRequests.Items {
-			logger.Debugf("uid %v %q %q", accessRequest.Spec.UserInfo.Username == currentUser.Username, accessRequest.Spec.UserInfo.Username, currentUser.Username)
-			logger.Debugf("resource %v %q %q", accessRequest.Spec.ForObject.Resource == admissionReview.Request.Resource, accessRequest.Spec.ForObject.Resource, admissionReview.Request.Resource)
-			logger.Debugf("subresource %v %q %q", accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource, accessRequest.Spec.ForObject.SubResource, admissionReview.Request.SubResource)
-			logger.Debugf("name %v %q %q", accessRequest.Spec.ForObject.Name == admissionReview.Request.Name, accessRequest.Spec.ForObject.Name, admissionReview.Request.Name)
-			logger.Debugf("namespace %v %q %q", accessRequest.Spec.ForObject.Namespace == admissionReview.Request.Namespace, accessRequest.Spec.ForObject.Namespace, admissionReview.Request.Namespace)
-			logger.Debugf("execOptions %v %q %q", equality.Semantic.DeepEqual(accessRequest.Spec.ExecOptions, podExecOptions), accessRequest.Spec.ExecOptions, podExecOptions)
+			logrus.Debugf("uid %v %q %q", accessRequest.Spec.UserInfo.Username == currentUser.Username, accessRequest.Spec.UserInfo.Username, currentUser.Username)
+			logrus.Debugf("resource %v %q %q", accessRequest.Spec.ForObject.Resource == admissionReview.Request.Resource, accessRequest.Spec.ForObject.Resource, admissionReview.Request.Resource)
+			logrus.Debugf("subresource %v %q %q", accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource, accessRequest.Spec.ForObject.SubResource, admissionReview.Request.SubResource)
+			logrus.Debugf("name %v %q %q", accessRequest.Spec.ForObject.Name == admissionReview.Request.Name, accessRequest.Spec.ForObject.Name, admissionReview.Request.Name)
+			logrus.Debugf("namespace %v %q %q", accessRequest.Spec.ForObject.Namespace == admissionReview.Request.Namespace, accessRequest.Spec.ForObject.Namespace, admissionReview.Request.Namespace)
+			logrus.Debugf("execOptions %v %q %q", equality.Semantic.DeepEqual(accessRequest.Spec.ExecOptions, podExecOptions), accessRequest.Spec.ExecOptions, podExecOptions)
 
-			logger.Debugf("%q %q", accessRequest.Spec.ExecOptions.Command, podExecOptions.Command)
+			logrus.Debugf("%q %q", accessRequest.Spec.ExecOptions.Command, podExecOptions.Command)
 
 			// allow any command if no command was specified in request
 			if len(accessRequest.Spec.ExecOptions.Command) == 0 {
@@ -457,7 +451,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 		}
 
 		if match == nil {
-			logger.Error("no match")
+			logrus.Error("no match")
 			return false, "", http.StatusForbidden, nil
 		}
 
@@ -469,8 +463,8 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 
 		var grantMatch *accessrequestsv1.AccessGrant
 		for _, accessGrant := range accessGrants.Items {
-			logger.Debugf("for %q %q", accessGrant.Spec.GrantFor, match.Name)
-			logger.Debugf("status %q", accessGrant.Status)
+			logrus.Debugf("for %q %q", accessGrant.Spec.GrantFor, match.Name)
+			logrus.Debugf("status %q", accessGrant.Status)
 			if accessGrant.Spec.GrantFor == match.Name &&
 				accessGrant.Status == accessrequestsv1.AccessGrantGranted {
 				grantMatch = &accessGrant
@@ -479,7 +473,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 		}
 
 		if grantMatch == nil {
-			logger.Error("no grant match")
+			logrus.Error("no grant match")
 			return false, "", http.StatusForbidden, nil
 		}
 
@@ -520,7 +514,7 @@ func handle(ctx context.Context, logger *logrus.Entry, admissionReview *admissio
 			return false, msg, http.StatusForbidden, err
 		}
 
-		logger.Info("audit", podExecOptions) // TODO: which format do we want?
+		logrus.Info("audit", podExecOptions) // TODO: which format do we want?
 		return true, "", http.StatusOK, nil
 	default:
 		err := fmt.Errorf("unhandled object of type %q", gvk.Group+"/"+gvk.Kind)

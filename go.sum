@@ -37,12 +37,6 @@ cloud.google.com/go/storage v1.6.0/go.mod h1:N7U0C8pVQ/+NIKOBQyamJIeKQKkZ+mxpohl
 cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RXyy7KQOVs=
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-git.spreadomat.net/go/logging v0.2.1 h1:0FtUzRGqnKz/kHU7V1TKdJjh/L9Fs4/kQHbsd7KTM+M=
-git.spreadomat.net/go/logging v0.2.1/go.mod h1:pQRKgkt8C4ycHWUfm0Dg+CxXJIaVMlO0xfEok7cCO1Q=
-git.spreadomat.net/go/timing v0.0.0-20191108105106-fa93cad2583a h1:IOI4VQLoRsKHP4gHKUUwRIPELXysEjUY0cj+OU9ncps=
-git.spreadomat.net/go/timing v0.0.0-20191108105106-fa93cad2583a/go.mod h1:nq/QemXnvONLvsJI9b7ZuxZv/vZiXRxcUXfqd/F2vJI=
-git.spreadomat.net/go/tracing v0.0.0-20190425125211-f1509a185eed h1:TQ2/DEGdMNqNzMTIUpy7j+4BGGOLVESiFhp2BLEFupY=
-git.spreadomat.net/go/tracing v0.0.0-20190425125211-f1509a185eed/go.mod h1:/fM4i91TWD+6LtgVnJ+B6ckSbe0Unwf1oiwSNs3/5lU=
 github.com/Azure/go-autorest v14.2.0+incompatible/go.mod h1:r+4oMnoxhatjLLJ6zxSWATqVooLgysK6ZNox3g/xq24=
 github.com/Azure/go-autorest/autorest v0.11.18/go.mod h1:dSiJPy22c3u0OtOKDNttNgqpNFY/GeWa7GH/Pz56QRA=
 github.com/Azure/go-autorest/autorest/adal v0.9.13/go.mod h1:W/MM4U6nLxnIskrw4UwWzlHfGjwUS50aOsc/I3yuU8M=
@@ -70,8 +64,6 @@ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kBD4zp0CCIs=
 github.com/bketelsen/crypt v0.0.4/go.mod h1:aI6NrJ0pMGgvZKL1iVgXLnfIFJtfV+bKCoqOes/6LfM=
-github.com/bshuster-repo/logrus-logstash-hook v0.0.0-20180418140028-1e961e8e173c h1:pG3hj67G+/jIlUD5fd+1z0QdMrsdjkXmkcwc6kPVyvs=
-github.com/bshuster-repo/logrus-logstash-hook v0.0.0-20180418140028-1e961e8e173c/go.mod h1:zsTqEiSzDgAa/8GZR7E1qaXrhYNDKBYy5/dWPTIflbk=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=

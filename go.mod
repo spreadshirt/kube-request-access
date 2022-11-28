@@ -3,7 +3,6 @@ module github.com/spreadshirt/kube-request-access
 go 1.19
 
 require (
-	git.spreadomat.net/go/logging v0.2.1
 	github.com/gorilla/mux v1.8.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/urfave/cli/v2 v2.20.3
@@ -13,11 +12,8 @@ require (
 )
 
 require (
-	git.spreadomat.net/go/timing v0.0.0-20191108105106-fa93cad2583a // indirect
-	git.spreadomat.net/go/tracing v0.0.0-20190425125211-f1509a185eed // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/bshuster-repo/logrus-logstash-hook v0.0.0-20180418140028-1e961e8e173c // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
