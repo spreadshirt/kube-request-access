@@ -1,4 +1,4 @@
-FROM registry.spreadgroup.com/golang:1.19.2 AS gobuild
+FROM golang:1.19.3 AS gobuild
 
 RUN adduser --gecos 'appuser' --system appuser --uid 1000
 

@@ -1,5 +1,3 @@
-DEPLOYMENT_TAG:=$(shell git log -1 --pretty=format:%cd.%H --date=short)
-
 all: kube-request-access local-config
 
 kube-request-access: Makefile *.go
@@ -27,7 +25,4 @@ apis/accessrequests/v1/zz_generated.deepcopy.go: Makefile apis/accessrequests/v1
 	GOPATH=$$PWD/.go ./code-generator/generate-groups.sh deepcopy,client github.com/spreadshirt/kube-request-access/apis/generated github.com/spreadshirt/kube-request-access/apis accessrequests:v1 --go-header-file /dev/null
 
 docker: kube-request-access
-	docker build -t kube-request-access:local -t registry.spreadgroup.com/sprd/kube-request-access:$(DEPLOYMENT_TAG) .
-	
-publish: docker
-	docker push registry.spreadgroup.com/sprd/kube-request-access:$(DEPLOYMENT_TAG)
+	docker build -t kube-request-access:local .

@@ -15,16 +15,6 @@ spec:
       labels:
         app: kube-request-access
     spec:
-      # initContainers:
-      #   - name: init-ssl-certificate
-      #     image: registry.spreadgroup.com/sprd/base/alpine-kubectl-openssl:1.23.7-1
-      #     command:
-      #       - "/bin/sh"
-      #       - "-c"
-      #       - "/usr/local/bin/create_and_sign kube-request-access default /ssl && chmod -v 0755 /ssl && chmod -v 0644 /ssl/kube-request-access.pem /ssl/kube-request-access.key"
-      #     volumeMounts:
-      #       - mountPath: /ssl
-      #         name: ssl-volume
       containers:
         - name: kube-request-access
           image: kube-request-access:local
@@ -52,8 +42,6 @@ spec:
         - configMap:
             name: kube-request-access-certs
           name: certs
-      imagePullSecrets:
-        - name: registry.spreadgroup.com
       serviceAccountName: kube-request-access
 ---
 apiVersion: v1
