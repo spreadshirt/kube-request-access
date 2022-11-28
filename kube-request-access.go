@@ -68,6 +68,8 @@ type admissionHandler struct {
 	// Additionally they won't have the regular restrictions applied, like exec
 	// with stdin or tty set for interactive commands.
 	AlwaysAllowedGroupName string
+
+	auditer Auditer
 }
 
 func main() {
@@ -140,6 +142,10 @@ func runServer(c *cli.Context) error {
 		return fmt.Errorf("could not create accessrequests client: %w", err)
 	}
 
+	auditer := &AuditLogger{
+		logger: logrus.StandardLogger(),
+	}
+
 	handler := &admissionHandler{
 		kubernetesClient:     kubernetesClient,
 		accessRequestsClient: accessRequestsClient,
@@ -147,6 +153,8 @@ func runServer(c *cli.Context) error {
 		MaxValidFor:            DefaultMaxValidFor,
 		GrantedRoleName:        grantedRoleName,
 		AlwaysAllowedGroupName: alwaysAllowedGroupName,
+
+		auditer: auditer,
 	}
 
 	router := mux.NewRouter()
@@ -415,7 +423,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			}
 
 			if isAlwaysAllowed {
-				logrus.Info("admin audit", podExecOptions)
+				err = ah.auditer.AuditExec(admissionReview.Request, true, podExecOptions, true)
+				if err != nil {
+					return false, "audit failed", http.StatusInternalServerError, err
+				}
 				return true, "", http.StatusOK, nil
 			}
 		}
@@ -524,7 +535,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			return false, msg, http.StatusForbidden, err
 		}
 
-		logrus.Info("audit", podExecOptions) // TODO: which format do we want?
+		err = ah.auditer.AuditExec(admissionReview.Request, true, podExecOptions, false)
+		if err != nil {
+			return false, "audit failed", http.StatusInternalServerError, err
+		}
 		return true, "", http.StatusOK, nil
 	default:
 		err := fmt.Errorf("unhandled object of type %q", gvk.Group+"/"+gvk.Kind)
