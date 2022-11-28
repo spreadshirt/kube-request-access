@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -158,9 +159,7 @@ func runServer(c *cli.Context) error {
 	}
 
 	router := mux.NewRouter()
-	router.HandleFunc("/", handler.handleAdmission)
-
-	// TODO: log requests somehow™, maybe https://pkg.go.dev/github.com/gorilla/handlers#CustomLoggingHandler?
+	router.Handle("/", handlers.CustomLoggingHandler(logrus.StandardLogger().Out, http.HandlerFunc(handler.handleAdmission), logFormatter))
 
 	logrus.Infof("Listening on https://%s", c.String("addr"))
 	err = http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), router)
@@ -168,6 +167,14 @@ func runServer(c *cli.Context) error {
 		return err
 	}
 	return nil
+}
+
+func logFormatter(_ io.Writer, params handlers.LogFormatterParams) {
+	logrus.WithFields(logrus.Fields{
+		"response.size": params.Size,
+		"status.code":   params.StatusCode,
+		"request.url":   params.URL.String(),
+	}).Infof("%s %s %d", params.Request.Method, params.Request.URL.Path, params.StatusCode)
 }
 
 func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Request) {
