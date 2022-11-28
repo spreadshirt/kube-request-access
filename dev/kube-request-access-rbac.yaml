@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: kubectl-audit-permissions
+  name: kube-request-access-permissions
 rules:
   - apiGroups:
       - certificates.k8s.io
@@ -50,12 +50,12 @@ rules:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: kubectl-audit-permissions
+  name: kube-request-access-permissions
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: kubectl-audit-permissions
+  name: kube-request-access-permissions
 subjects:
   - kind: ServiceAccount
-    name: kubectl-audit
+    name: kube-request-access
     namespace: default

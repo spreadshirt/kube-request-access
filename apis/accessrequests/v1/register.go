@@ -5,7 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	accessrequests "git.spreadomat.net/deleng/kubectl-audit/apis/accessrequests"
+	accessrequests "github.com/spreadshirt/kube-request-access/apis/accessrequests"
 )
 
 // SchemeGroupVersion is group version used to register these objects

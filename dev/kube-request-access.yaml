@@ -2,18 +2,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kubectl-audit
+  name: kube-request-access
   labels:
-    app: kubectl-audit
+    app: kube-request-access
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kubectl-audit
+      app: kube-request-access
   template:
     metadata:
       labels:
-        app: kubectl-audit
+        app: kube-request-access
     spec:
       # initContainers:
       #   - name: init-ssl-certificate
@@ -21,15 +21,15 @@ spec:
       #     command:
       #       - "/bin/sh"
       #       - "-c"
-      #       - "/usr/local/bin/create_and_sign kubectl-audit default /ssl && chmod -v 0755 /ssl && chmod -v 0644 /ssl/kubectl-audit.pem /ssl/kubectl-audit.key"
+      #       - "/usr/local/bin/create_and_sign kube-request-access default /ssl && chmod -v 0755 /ssl && chmod -v 0644 /ssl/kube-request-access.pem /ssl/kube-request-access.key"
       #     volumeMounts:
       #       - mountPath: /ssl
       #         name: ssl-volume
       containers:
-        - name: kubectl-audit
-          image: kubectl-audit:local
+        - name: kube-request-access
+          image: kube-request-access:local
           command:
-            - "/app/kubectl-audit"
+            - "/app/kube-request-access"
           args:
             - "--addr=0.0.0.0:8443"
             - "--cert-file=/ssl/localhost.crt"
@@ -50,29 +50,29 @@ spec:
         - name: ssl-volume
           emptyDir: {}
         - configMap:
-            name: kubectl-audit-certs
+            name: kube-request-access-certs
           name: certs
       imagePullSecrets:
         - name: registry.spreadgroup.com
-      serviceAccountName: kubectl-audit
+      serviceAccountName: kube-request-access
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: kubectl-audit
+  name: kube-request-access
   namespace: default
   labels:
-    app: kubectl-audit
+    app: kube-request-access
 secrets:
-  - name: kubectl-audit-permissions
+  - name: kube-request-access-permissions
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: kubectl-audit
+  name: kube-request-access
 spec:
   selector:
-    app: kubectl-audit
+    app: kube-request-access
   ports:
     - port: 443
       targetPort: 8443

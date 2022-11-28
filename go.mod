@@ -1,4 +1,4 @@
-module git.spreadomat.net/deleng/kubectl-audit
+module github.com/spreadshirt/kube-request-access
 
 go 1.19
 

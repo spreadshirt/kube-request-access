@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	v1 "git.spreadomat.net/deleng/kubectl-audit/apis/accessrequests/v1"
-	scheme "git.spreadomat.net/deleng/kubectl-audit/apis/generated/clientset/versioned/scheme"
+	v1 "github.com/spreadshirt/kube-request-access/apis/accessrequests/v1"
+	scheme "github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"

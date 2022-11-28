@@ -30,13 +30,13 @@ if ! k3d cluster list | grep "$CLUSTER_NAME"; then
   k3d cluster create --image="rancher/k3s:$K8S_VERSION-k3s1"
 fi
 
-echo ">>> Starting kubectl-audit in k3s"
+echo ">>> Starting kube-request-access in k3s"
 # redeploy kubernetes yaml files if they change
 git ls-files -co dev | entr -c -r kubectl --context "$CONTEXT" apply -k dev/&
-# redeploy kubectl-audit to kubernetes if it changes
+# redeploy kube-request-access to kubernetes if it changes
 git ls-files -co | grep -v '^dev/' | CONTEXT="$CONTEXT" entr -c -r ./scripts/restart --watch&
 sleep 5
 
-echo ">>> Starting kubectl-audit locally"
+echo ">>> Starting kube-request-access locally"
 # run locally to see errors there as well
 git ls-files -co '*.go' | go run .

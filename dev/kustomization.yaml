@@ -1,6 +1,6 @@
 resources:
-  - kubectl-audit.yaml
-  - kubectl-audit-rbac.yaml
+  - kube-request-access.yaml
+  - kube-request-access-rbac.yaml
   - validating-admission-webhook.yaml
   # crds
   - request-crd.yaml
@@ -11,7 +11,7 @@ resources:
   - developer-role.yaml
   - developer-exec-role.yaml
 configMapGenerator:
-  - name: kubectl-audit-certs
+  - name: kube-request-access-certs
     files:
       - localhost.key
       - localhost.crt

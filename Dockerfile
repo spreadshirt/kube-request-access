@@ -16,6 +16,6 @@ USER appuser
 
 WORKDIR /app
 
-CMD ["/app/kubectl-audit", "--addr=0.0.0.0:8443"]
+CMD ["/app/kube-request-access", "--addr=0.0.0.0:8443"]
 
-ADD kubectl-audit /app/kubectl-audit
+ADD kube-request-access /app/kube-request-access

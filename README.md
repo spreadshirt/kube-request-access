@@ -1,4 +1,4 @@
-# kubectl-audit
+# kube-request-access
 
 Let's make `kubectl exec` and friends auditable!
 

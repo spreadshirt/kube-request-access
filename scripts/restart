@@ -7,16 +7,16 @@ CONTEXT="k3d-$CLUSTER_NAME"
 
 echo "  Rebuilding and pushing to k3d"
 make docker
-k3d image import --mode=auto kubectl-audit:local
+k3d image import --mode=auto kube-request-access:local
 
 echo
 echo "  Restarting"
-kubectl --context "$CONTEXT" delete pods -l app=kubectl-audit
+kubectl --context "$CONTEXT" delete pods -l app=kube-request-access
 
 if [ "$#" -ge 1 ] && [ "$1" = "--watch" ]; then
-  kubectl --context "$CONTEXT" rollout status --watch deployment/kubectl-audit
+  kubectl --context "$CONTEXT" rollout status --watch deployment/kube-request-access
 
   echo
   echo "  Logs below"
-  kubectl logs --context "$CONTEXT" --follow "$(kubectl --context "$CONTEXT" get pods --sort-by "{.startTime}" -l app=kubectl-audit | tail -n+2 | cut -d' ' -f1)"
+  kubectl logs --context "$CONTEXT" --follow "$(kubectl --context "$CONTEXT" get pods --sort-by "{.startTime}" -l app=kube-request-access | tail -n+2 | cut -d' ' -f1)"
 fi

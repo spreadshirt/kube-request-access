@@ -3,9 +3,9 @@
 package fake
 
 import (
-	clientset "git.spreadomat.net/deleng/kubectl-audit/apis/generated/clientset/versioned"
-	accessrequestsv1 "git.spreadomat.net/deleng/kubectl-audit/apis/generated/clientset/versioned/typed/accessrequests/v1"
-	fakeaccessrequestsv1 "git.spreadomat.net/deleng/kubectl-audit/apis/generated/clientset/versioned/typed/accessrequests/v1/fake"
+	clientset "github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned"
+	accessrequestsv1 "github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned/typed/accessrequests/v1"
+	fakeaccessrequestsv1 "github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned/typed/accessrequests/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

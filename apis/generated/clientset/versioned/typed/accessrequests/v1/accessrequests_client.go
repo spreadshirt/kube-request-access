@@ -5,8 +5,8 @@ package v1
 import (
 	"net/http"
 
-	v1 "git.spreadomat.net/deleng/kubectl-audit/apis/accessrequests/v1"
-	"git.spreadomat.net/deleng/kubectl-audit/apis/generated/clientset/versioned/scheme"
+	v1 "github.com/spreadshirt/kube-request-access/apis/accessrequests/v1"
+	"github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

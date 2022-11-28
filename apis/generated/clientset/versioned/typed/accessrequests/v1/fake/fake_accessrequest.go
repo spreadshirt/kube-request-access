@@ -5,7 +5,7 @@ package fake
 import (
 	"context"
 
-	accessrequestsv1 "git.spreadomat.net/deleng/kubectl-audit/apis/accessrequests/v1"
+	accessrequestsv1 "github.com/spreadshirt/kube-request-access/apis/accessrequests/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
