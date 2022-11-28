@@ -45,25 +45,30 @@ func addToScheme(scheme *runtime.Scheme) {
 	utilruntime.Must(accessrequestsv1.AddToScheme(scheme))
 }
 
-var kubernetesClient *kubernetes.Clientset
-var accessRequestsClient *accessrequestsclientv1.AccessrequestsV1Client
+// DefaultMaxValidFor is the default maximum validity of an access request.
+const DefaultMaxValidFor = 12 * time.Hour
 
-// MaxValidFor is the maximum validity of an access request.
-const MaxValidFor = 12 * time.Hour
+type admissionHandler struct {
+	kubernetesClient     *kubernetes.Clientset
+	accessRequestsClient *accessrequestsclientv1.AccessrequestsV1Client
 
-// GrantedRoleName is the role that is temporarily given to users when their
-// access request was granted.
-//
-// If no role name is set then it a role is already assumed to exist, created
-// by some other system.
-var GrantedRoleName = ""
+	// MaxValidFor is the maximum validity of an access request.
+	MaxValidFor time.Duration
 
-// AlwaysAllowedGroupName can be set to always allow users with the given
-// group.  They won't need to request or grant and will always be allowed.
-//
-// Additionally they won't have the regular restrictions applied, like exec
-// with stdin or tty set for interactive commands.
-var AlwaysAllowedGroupName = ""
+	// GrantedRoleName is the role that is temporarily given to users when their
+	// access request was granted.
+	//
+	// If no role name is set then it a role is already assumed to exist, created
+	// by some other system.
+	GrantedRoleName string
+
+	// AlwaysAllowedGroupName can be set to always allow users with the given
+	// group.  They won't need to request or grant and will always be allowed.
+	//
+	// Additionally they won't have the regular restrictions applied, like exec
+	// with stdin or tty set for interactive commands.
+	AlwaysAllowedGroupName string
+}
 
 func main() {
 	app := cli.App{
@@ -114,33 +119,38 @@ func runServer(c *cli.Context) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	GrantedRoleName = c.String("granted-role-name")
-	AlwaysAllowedGroupName = c.String("always-allowed-group-name")
+	grantedRoleName := c.String("granted-role-name")
+	alwaysAllowedGroupName := c.String("always-allowed-group-name")
 
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	// if you want to change the loading rules (which files in which order), you can do so here
-
 	configOverrides := &clientcmd.ConfigOverrides{}
-	// if you want to change override values or bind them to flags, there are methods to help you
-
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
 	config, err := kubeConfig.ClientConfig()
 	if err != nil {
 		return fmt.Errorf("could not find kubernetes client config: %w", err)
 	}
 
-	kubernetesClient, err = kubernetes.NewForConfig(config)
+	kubernetesClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("could not create kubernetes client: %w", err)
 	}
 
-	accessRequestsClient, err = accessrequestsclientv1.NewForConfig(config)
+	accessRequestsClient, err := accessrequestsclientv1.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("could not create accessrequests client: %w", err)
 	}
 
+	handler := &admissionHandler{
+		kubernetesClient:     kubernetesClient,
+		accessRequestsClient: accessRequestsClient,
+
+		MaxValidFor:            DefaultMaxValidFor,
+		GrantedRoleName:        grantedRoleName,
+		AlwaysAllowedGroupName: alwaysAllowedGroupName,
+	}
+
 	router := mux.NewRouter()
-	router.HandleFunc("/", handleAdmission)
+	router.HandleFunc("/", handler.handleAdmission)
 
 	// TODO: log requests somehow™, maybe https://pkg.go.dev/github.com/gorilla/handlers#CustomLoggingHandler?
 
@@ -152,7 +162,7 @@ func runServer(c *cli.Context) error {
 	return nil
 }
 
-func handleAdmission(w http.ResponseWriter, req *http.Request) {
+func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Request) {
 	var body []byte
 	if req.Body != nil {
 		if data, err := io.ReadAll(req.Body); err == nil {
@@ -185,7 +195,7 @@ func handleAdmission(w http.ResponseWriter, req *http.Request) {
 		}
 		responseAdmissionReview := &admissionv1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		allowed, msg, code, err := handle(req.Context(), requestedAdmissionReview)
+		allowed, msg, code, err := ah.handleReview(req.Context(), requestedAdmissionReview)
 		if err != nil {
 			logrus.WithError(err).Error("error handling admission review")
 			responseAdmissionReview.Response = &admissionv1.AdmissionResponse{
@@ -288,7 +298,7 @@ var admissionReviewExample = `
 }
 `
 
-func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (allowed bool, response string, code int32, err error) {
+func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (allowed bool, response string, code int32, err error) {
 	if logrus.GetLevel() == logrus.DebugLevel {
 		buf := new(bytes.Buffer)
 		enc := json.NewEncoder(buf)
@@ -325,7 +335,7 @@ func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (
 				return false, err.Error(), http.StatusBadRequest, nil
 			}
 
-			if validFor > MaxValidFor {
+			if validFor > ah.MaxValidFor {
 				msg := "requests can be valid for at most 24 hours (24h)"
 				return false, msg, http.StatusBadRequest, nil
 			}
@@ -349,14 +359,14 @@ func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (
 
 		}
 
-		accessRequest, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Get(ctx, accessGrant.Spec.GrantFor, metav1.GetOptions{})
+		accessRequest, err := ah.accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Get(ctx, accessGrant.Spec.GrantFor, metav1.GetOptions{})
 		if err != nil {
 			err = fmt.Errorf("could not find matching access request: %w", err)
 			return false, err.Error(), http.StatusBadRequest, err
 		}
 
-		if GrantedRoleName != "" {
-			roleBinding, err := kubernetesClient.RbacV1().RoleBindings(admissionReview.Request.Namespace).Create(ctx, &rbacv1.RoleBinding{
+		if ah.GrantedRoleName != "" {
+			roleBinding, err := ah.kubernetesClient.RbacV1().RoleBindings(admissionReview.Request.Namespace).Create(ctx, &rbacv1.RoleBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: fmt.Sprintf("developer-exec-tmp-%s-", accessRequest.Spec.UserInfo.Username),
 					OwnerReferences: []metav1.OwnerReference{
@@ -370,7 +380,7 @@ func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (
 				},
 				RoleRef: rbacv1.RoleRef{
 					Kind: "Role",
-					Name: GrantedRoleName,
+					Name: ah.GrantedRoleName,
 				},
 				Subjects: []rbacv1.Subject{
 					{
@@ -384,7 +394,7 @@ func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (
 				return false, err.Error(), http.StatusInternalServerError, err
 			}
 
-			logrus.Debugf("created rolebinding %q (with role %q) to account %q", roleBinding.Name, GrantedRoleName, accessRequest.Spec.UserInfo.Username)
+			logrus.Debugf("created rolebinding %q (with role %q) to account %q", roleBinding.Name, ah.GrantedRoleName, accessRequest.Spec.UserInfo.Username)
 		}
 
 		return true, "", http.StatusOK, nil
@@ -395,10 +405,10 @@ func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (
 			return false, "", http.StatusInternalServerError, err
 		}
 
-		if AlwaysAllowedGroupName != "" {
+		if ah.AlwaysAllowedGroupName != "" {
 			isAlwaysAllowed := false
 			for _, group := range admissionReview.Request.UserInfo.Groups {
-				if group == AlwaysAllowedGroupName {
+				if group == ah.AlwaysAllowedGroupName {
 					isAlwaysAllowed = true
 					break
 				}
@@ -414,7 +424,7 @@ func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (
 			return false, "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed", http.StatusForbidden, nil
 		}
 
-		accessRequests, err := accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
+		accessRequests, err := ah.accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			err = fmt.Errorf("could not list accessrequests: %w", err)
 			return false, "", http.StatusInternalServerError, err
@@ -455,7 +465,7 @@ func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (
 			return false, "", http.StatusForbidden, nil
 		}
 
-		accessGrants, err := accessRequestsClient.AccessGrants(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
+		accessGrants, err := ah.accessRequestsClient.AccessGrants(admissionReview.Request.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			err = fmt.Errorf("could not list accessgrants: %w", err)
 			return false, "", http.StatusInternalServerError, err
@@ -501,7 +511,7 @@ func handle(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (
 				deleteOptions.DryRun = []string{"All"}
 			}
 
-			err = accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Delete(ctx, match.Name, deleteOptions)
+			err = ah.accessRequestsClient.AccessRequests(admissionReview.Request.Namespace).Delete(ctx, match.Name, deleteOptions)
 			if err != nil {
 				err = fmt.Errorf("could not delete request: %w", err)
 				return false, "", http.StatusInternalServerError, err
