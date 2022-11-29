@@ -1,3 +1,4 @@
 /kube-request-access
 /kubectl-access
+/webhook-auditer
 /.go

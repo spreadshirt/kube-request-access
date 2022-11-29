@@ -108,6 +108,18 @@ func main() {
 				Value: "",
 				Usage: "Name of the group whose members will be allowed to execute commands without a request and grant",
 			},
+			&cli.StringFlag{
+				Name:  "audit-webhook-url",
+				Value: "",
+				Usage: "URL of the audit webhook to be used",
+			},
+			&cli.StringFlag{
+				Name:      "audit-webhook-ca-bundle",
+				EnvVars:   []string{"AUDIT_WEBHOOK_CA_BUNDLE"},
+				Value:     "",
+				TakesFile: true,
+				Usage:     "Path to the cert file of the audit webhook",
+			},
 		},
 		Action: runServer,
 	}
@@ -143,8 +155,15 @@ func runServer(c *cli.Context) error {
 		return fmt.Errorf("could not create accessrequests client: %w", err)
 	}
 
-	auditer := &AuditLogger{
+	var auditer Auditer
+	auditer = &AuditLogger{
 		logger: logrus.StandardLogger(),
+	}
+	if c.IsSet("audit-webhook-url") {
+		auditer, err = NewWebhookAuditer(c.String("audit-webhook-url"), c.String("audit-webhook-ca-bundle"))
+		if err != nil {
+			return fmt.Errorf("could not create webhook auditer: %w", err)
+		}
 	}
 
 	handler := &admissionHandler{
@@ -361,6 +380,11 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			return false, msg, http.StatusForbidden, err
 		}
 
+		err = ah.auditer.AuditCreated(admissionReview.Request, *accessRequest)
+		if err != nil {
+			return false, "audit failed", http.StatusInternalServerError, err
+		}
+
 		// TODO: consider rejecting multiple requests for the same command
 
 		return true, "", http.StatusOK, nil
@@ -412,6 +436,8 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			logrus.Debugf("created rolebinding %q (with role %q) to account %q", roleBinding.Name, ah.GrantedRoleName, accessRequest.Spec.UserInfo.Username)
 		}
 
+		// TODO: create an audit event for this ($user granted ...)
+
 		return true, "", http.StatusOK, nil
 	case corev1.SchemeGroupVersion.WithKind("PodExecOptions"):
 		podExecOptions, ok := obj.(*corev1.PodExecOptions)
@@ -462,9 +488,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 
 			logrus.Debugf("%q %q", accessRequest.Spec.ExecOptions.Command, podExecOptions.Command)
 
+			optionsToCompare := *podExecOptions
 			// allow any command if no command was specified in request
 			if len(accessRequest.Spec.ExecOptions.Command) == 0 {
-				podExecOptions.Command = nil
+				optionsToCompare.Command = nil
 			}
 
 			if accessRequest.Spec.UserInfo.Username == currentUser.Username &&
@@ -472,7 +499,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 				accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource &&
 				accessRequest.Spec.ForObject.Name == admissionReview.Request.Name &&
 				accessRequest.Spec.ForObject.Namespace == admissionReview.Request.Namespace &&
-				equality.Semantic.DeepEqual(accessRequest.Spec.ExecOptions, podExecOptions) {
+				equality.Semantic.DeepEqual(accessRequest.Spec.ExecOptions, &optionsToCompare) {
 				match = &accessRequest
 				break
 			}

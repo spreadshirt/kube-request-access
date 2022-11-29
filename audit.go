@@ -22,24 +22,11 @@ type Auditer interface {
 	AuditCreated(request *admissionv1.AdmissionRequest, accessRequest accessrequestsv1.AccessRequest) error
 }
 
-const (
-	// AuditTypeExec marks that an Auditer supports the AuditExec method.
-	AuditTypeExec = "audit-exec"
-	// AuditTypeCreated marks that an Auditer supports the AuditCreated method.
-	AuditTypeCreated = "audit-created"
-)
-
 var _ Auditer = &AuditLogger{}
 
 type AuditLogger struct {
 	// TODO: should use https://pkg.go.dev/k8s.io/klog/v2 instead?  (standard for Kubernetes things)
 	logger *logrus.Logger
-}
-
-func (al *AuditLogger) SupportedAuditTypes() []string {
-	return []string{
-		AuditTypeExec,
-	}
 }
 
 func (al *AuditLogger) AuditExec(request *admissionv1.AdmissionRequest, isAllowed bool, execOptions *corev1.PodExecOptions, isAdmin bool) error {

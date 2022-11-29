@@ -8,13 +8,15 @@ CONTEXT="k3d-$CLUSTER_NAME"
 echo "  Rebuilding and pushing to k3d"
 make docker
 k3d image import --mode=auto kube-request-access:local
+k3d image import --mode=auto webhook-auditer:local
 
 echo
 echo "  Restarting"
 kubectl --context "$CONTEXT" delete pods -l app=kube-request-access
+kubectl --context "$CONTEXT" delete pods -l app=webhook-auditer
 
 if [ "$#" -ge 1 ] && [ "$1" = "--watch" ]; then
-  kubectl --context "$CONTEXT" rollout status --watch deployment/kube-request-access
+  kubectl --context "$CONTEXT" rollout status --watch deployment/kube-request-access deployment/webhook-auditer
 
   echo
   echo "  Logs below"

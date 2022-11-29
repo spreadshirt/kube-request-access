@@ -26,6 +26,8 @@ spec:
             - "--key-file=/ssl/localhost.key"
             - "--granted-role-name=developer-exec"
             - "--always-allowed-group-name=system:masters"
+            - "--audit-webhook-url=https://webhook-auditer.default.svc/audit"
+            - "--audit-webhook-ca-bundle=/ssl/localhost.crt"
             - "--verbose"
           ports:
             - containerPort: 8443

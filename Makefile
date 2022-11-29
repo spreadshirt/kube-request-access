@@ -3,6 +3,9 @@ all: kube-request-access local-config
 kube-request-access: Makefile *.go
 	CGO_ENABLED=0 go build .
 	
+webhook-auditer: Makefile webhooks/*.go examples/webhook-auditer/*.go
+	CGO_ENABLED=0 go build ./examples/webhook-auditer
+
 local-config: dev/localhost.crt dev/localhost.key dev/validating-admission-webhook.yaml
 
 dev/localhost.crt dev/localhost.key:
@@ -13,7 +16,7 @@ dev/localhost.crt dev/localhost.key:
 
 dev/validating-admission-webhook.yaml: dev/localhost.crt
 	sed -i -E 's/^(\s+)caBundle: "(.*)"(\s+)# CA_BUNDLE/\1caBundle: "'$$(base64 --wrap=0 dev/localhost.crt)'"\3# CA_BUNDLE/' dev/validating-admission-webhook.yaml
-	
+
 generate-code: apis/accessrequests/v1/zz_generated.deepcopy.go
 
 apis/accessrequests/v1/zz_generated.deepcopy.go: Makefile apis/accessrequests/v1/access_request.go apis/accessrequests/v1/access_grant.go
@@ -24,5 +27,6 @@ apis/accessrequests/v1/zz_generated.deepcopy.go: Makefile apis/accessrequests/v1
 	# generate the code!
 	GOPATH=$$PWD/.go ./code-generator/generate-groups.sh deepcopy,client github.com/spreadshirt/kube-request-access/apis/generated github.com/spreadshirt/kube-request-access/apis accessrequests:v1 --go-header-file /dev/null
 
-docker: kube-request-access
+docker: kube-request-access webhook-auditer
 	docker build -t kube-request-access:local .
+	docker build -f examples/webhook-auditer/Dockerfile -t webhook-auditer:local .
