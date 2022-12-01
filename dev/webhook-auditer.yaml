@@ -21,7 +21,7 @@ spec:
           command:
             - "/app/webhook-auditer"
           args:
-            - "--addr=0.0.0.0:9443"
+            - "--address=0.0.0.0:9443"
             - "--cert-file=/ssl/localhost.crt"
             - "--key-file=/ssl/localhost.key"
             - "--verbose"

@@ -7,13 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
+	"github.com/spf13/cobra"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +45,45 @@ func addToScheme(scheme *runtime.Scheme) {
 	utilruntime.Must(accessrequestsv1.AddToScheme(scheme))
 }
 
+type admissionConfig struct {
+	addr     string
+	certFile string
+	keyFile  string
+	verbose  bool
+
+	grantedRoleName        string
+	alwaysAllowedGroupName string
+
+	auditWebhookURL      string
+	auditWebhookCABundle string
+}
+
+func main() {
+	cfg := &admissionConfig{}
+
+	cmd := &cobra.Command{
+		Use:   "kube-request-access",
+		Short: "Run audited commands using kubectl",
+		RunE:  cfg.run,
+	}
+
+	cmd.Flags().StringVarP(&cfg.addr, "address", "a", "localhost:8443", "Address to listen on")
+	cmd.Flags().StringVarP(&cfg.certFile, "cert-file", "c", "dev/localhost.crt", "HTTPS cert file")
+	cmd.Flags().StringVarP(&cfg.keyFile, "key-file", "k", "dev/localhost.key", "HTTPS key file")
+	cmd.Flags().BoolVarP(&cfg.verbose, "verbose", "v", false, "Enable debug logging")
+
+	cmd.Flags().StringVar(&cfg.grantedRoleName, "granted-role-name", "", "Name of the role that is given to a user temporarily when a request is granted")
+	cmd.Flags().StringVar(&cfg.alwaysAllowedGroupName, "always-allowed-group-name", "", "Name of the group whose members will be allowed to execute commands without a request and grant")
+
+	cmd.Flags().StringVar(&cfg.auditWebhookURL, "audit-webhook-url", "", "URL of the audit webhook to be used")
+	cmd.Flags().StringVar(&cfg.auditWebhookCABundle, "audit-webhook-ca-bundle", "", "Path to the cert file of the audit webhook")
+
+	err := cmd.Execute()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+}
+
 // DefaultMaxValidFor is the default maximum validity of an access request.
 const DefaultMaxValidFor = 12 * time.Hour
 
@@ -73,69 +111,10 @@ type admissionHandler struct {
 	auditer Auditer
 }
 
-func main() {
-	app := cli.App{
-		Name:  "kube-request-access",
-		Usage: "Run audited commands using kubectl",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "addr",
-				Value: "localhost:8443",
-				Usage: "Address to listen on",
-			},
-			&cli.StringFlag{
-				Name:  "cert-file",
-				Value: "dev/localhost.crt",
-				Usage: "HTTPS cert file",
-			},
-			&cli.StringFlag{
-				Name:  "key-file",
-				Value: "dev/localhost.key",
-				Usage: "HTTPS key file",
-			},
-			&cli.BoolFlag{
-				Name:  "verbose",
-				Value: false,
-				Usage: "Enable debug logging",
-			},
-			&cli.StringFlag{
-				Name:  "granted-role-name",
-				Value: "",
-				Usage: "Name of the role that is given to a user temporarily when a request is granted",
-			},
-			&cli.StringFlag{
-				Name:  "always-allowed-group-name",
-				Value: "",
-				Usage: "Name of the group whose members will be allowed to execute commands without a request and grant",
-			},
-			&cli.StringFlag{
-				Name:  "audit-webhook-url",
-				Value: "",
-				Usage: "URL of the audit webhook to be used",
-			},
-			&cli.StringFlag{
-				Name:      "audit-webhook-ca-bundle",
-				EnvVars:   []string{"AUDIT_WEBHOOK_CA_BUNDLE"},
-				Value:     "",
-				TakesFile: true,
-				Usage:     "Path to the cert file of the audit webhook",
-			},
-		},
-		Action: runServer,
-	}
-	err := app.Run(os.Args)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-}
-
-func runServer(c *cli.Context) error {
-	if c.Bool("verbose") {
+func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
+	if cfg.verbose {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
-
-	grantedRoleName := c.String("granted-role-name")
-	alwaysAllowedGroupName := c.String("always-allowed-group-name")
 
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
@@ -159,8 +138,8 @@ func runServer(c *cli.Context) error {
 	auditer = &AuditLogger{
 		logger: logrus.StandardLogger(),
 	}
-	if c.IsSet("audit-webhook-url") {
-		auditer, err = NewWebhookAuditer(c.String("audit-webhook-url"), c.String("audit-webhook-ca-bundle"))
+	if cfg.auditWebhookURL != "" {
+		auditer, err = NewWebhookAuditer(cfg.auditWebhookURL, cfg.auditWebhookCABundle)
 		if err != nil {
 			return fmt.Errorf("could not create webhook auditer: %w", err)
 		}
@@ -171,8 +150,8 @@ func runServer(c *cli.Context) error {
 		accessRequestsClient: accessRequestsClient,
 
 		MaxValidFor:            DefaultMaxValidFor,
-		GrantedRoleName:        grantedRoleName,
-		AlwaysAllowedGroupName: alwaysAllowedGroupName,
+		GrantedRoleName:        cfg.grantedRoleName,
+		AlwaysAllowedGroupName: cfg.alwaysAllowedGroupName,
 
 		auditer: auditer,
 	}
@@ -180,8 +159,8 @@ func runServer(c *cli.Context) error {
 	router := mux.NewRouter()
 	router.Handle("/", handlers.CustomLoggingHandler(logrus.StandardLogger().Out, http.HandlerFunc(handler.handleAdmission), logFormatter))
 
-	logrus.Infof("Listening on https://%s", c.String("addr"))
-	err = http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), router)
+	logrus.Infof("Listening on https://%s", cfg.addr)
+	err = http.ListenAndServeTLS(cfg.addr, cfg.certFile, cfg.keyFile, router)
 	if err != nil {
 		return err
 	}

@@ -5,60 +5,52 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
+	"github.com/spf13/cobra"
 
 	"github.com/spreadshirt/kube-request-access/webhooks"
 )
 
+type webhookServer struct {
+	addr     string
+	certFile string
+	keyFile  string
+	verbose  bool
+}
+
 func main() {
-	app := cli.App{
-		Name:  "webhook-auditer-example",
-		Usage: "An example implementation of a working auditing webhook",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "addr",
-				Value: "localhost:8443",
-				Usage: "Address to listen on",
-			},
-			&cli.StringFlag{
-				Name:  "cert-file",
-				Value: "dev/localhost.crt",
-				Usage: "HTTPS cert file",
-			},
-			&cli.StringFlag{
-				Name:  "key-file",
-				Value: "dev/localhost.key",
-				Usage: "HTTPS key file",
-			},
-			&cli.BoolFlag{
-				Name:  "verbose",
-				Value: false,
-				Usage: "Enable debug logging",
-			},
-		},
-		Action: runWebhookServer,
+	srv := &webhookServer{}
+
+	cmd := &cobra.Command{
+		Use:   "webhook-auditer",
+		Short: "An example implementation of a working auditing webhook",
+		RunE:  srv.run,
 	}
-	err := app.Run(os.Args)
+
+	cmd.Flags().StringVarP(&srv.addr, "address", "a", "localhost:9443", "Address to listen on")
+	cmd.Flags().StringVarP(&srv.certFile, "cert-file", "c", "dev/localhost.crt", "HTTPS cert file")
+	cmd.Flags().StringVarP(&srv.keyFile, "key-file", "k", "dev/localhost.key", "HTTPS key file")
+	cmd.Flags().BoolVarP(&srv.verbose, "verbose", "v", false, "Enable debug logging")
+
+	err := cmd.Execute()
 	if err != nil {
 		logrus.Fatal(err)
 	}
 }
 
-func runWebhookServer(c *cli.Context) error {
-	if c.Bool("verbose") {
+func (ws *webhookServer) run(cmd *cobra.Command, _ []string) error {
+	if ws.verbose {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
 	router := mux.NewRouter()
-	router.Handle("/audit", handlers.CustomLoggingHandler(logrus.StandardLogger().Out, http.HandlerFunc(handleWebhook), logFormatter))
+	router.Handle("/audit", handlers.CustomLoggingHandler(logrus.StandardLogger().Out, http.HandlerFunc(ws.handleWebhook), logFormatter))
 
-	logrus.Infof("Listening on https://%s", c.String("addr"))
-	err := http.ListenAndServeTLS(c.String("addr"), c.String("cert-file"), c.String("key-file"), router)
+	logrus.Infof("Listening on https://%s", ws.addr)
+	err := http.ListenAndServeTLS(ws.addr, ws.certFile, ws.keyFile, router)
 	if err != nil {
 		return err
 	}
@@ -66,7 +58,7 @@ func runWebhookServer(c *cli.Context) error {
 	return nil
 }
 
-func handleWebhook(w http.ResponseWriter, req *http.Request) {
+func (ws *webhookServer) handleWebhook(w http.ResponseWriter, req *http.Request) {
 	dec := json.NewDecoder(req.Body)
 	switch req.URL.Query().Get("type") {
 	case webhooks.AuditTypeCreated:

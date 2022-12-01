@@ -21,7 +21,7 @@ spec:
           command:
             - "/app/kube-request-access"
           args:
-            - "--addr=0.0.0.0:8443"
+            - "--address=0.0.0.0:8443"
             - "--cert-file=/ssl/localhost.crt"
             - "--key-file=/ssl/localhost.key"
             - "--granted-role-name=developer-exec"
