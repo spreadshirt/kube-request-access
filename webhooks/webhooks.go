@@ -34,3 +34,20 @@ type AuditGrantData struct {
 	AccessRequest *accessrequestsv1.AccessRequest `json:"accessRequest"`
 	AccessGrant   *accessrequestsv1.AccessGrant   `json:"accessGrant"`
 }
+
+type ValidationResult struct {
+	Status  ValidationStatus `json:"status"`
+	Message string           `json:"message"`
+}
+
+type ValidationStatus string
+
+var (
+	Valid   ValidationStatus = "valid"
+	Invalid ValidationStatus = "invalid"
+)
+
+type ValidateAccessRequestData struct {
+	Request       *admissionv1.AdmissionRequest
+	AccessRequest *accessrequestsv1.AccessRequest
+}

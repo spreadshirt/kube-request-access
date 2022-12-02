@@ -16,6 +16,6 @@ USER appuser
 
 WORKDIR /app
 
-CMD ["/app/webhook-auditer", "--addr=0.0.0.0:9443"]
+CMD ["/app/webhook-validator", "--addr=0.0.0.0:10443"]
 
-ADD webhook-auditer /app/webhook-auditer
+ADD webhook-validator /app/webhook-validator

@@ -29,6 +29,7 @@ import (
 
 	accessrequestsv1 "github.com/spreadshirt/kube-request-access/apis/accessrequests/v1"
 	accessrequestsclientv1 "github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned/typed/accessrequests/v1"
+	"github.com/spreadshirt/kube-request-access/webhooks"
 )
 
 var scheme = runtime.NewScheme()
@@ -58,6 +59,9 @@ type admissionConfig struct {
 
 	auditWebhookURL      string
 	auditWebhookCABundle string
+
+	extendedValidationWebhookURL      string
+	extendedValidationWebhookCABundle string
 }
 
 func main() {
@@ -78,6 +82,9 @@ func main() {
 
 	cmd.Flags().StringVar(&cfg.auditWebhookURL, "audit-webhook-url", "", "URL of the audit webhook to be used")
 	cmd.Flags().StringVar(&cfg.auditWebhookCABundle, "audit-webhook-ca-bundle", "", "Path to the cert file of the audit webhook")
+
+	cmd.Flags().StringVar(&cfg.extendedValidationWebhookURL, "extended-validation-webhook-url", "", "URL of the extended validation webhook to be used")
+	cmd.Flags().StringVar(&cfg.extendedValidationWebhookCABundle, "extended-validation-webhook-ca-bundle", "", "Path to the cert file of the extended validation webhook")
 
 	// add -v from klog
 	klogFlags := flag.NewFlagSet("", flag.ContinueOnError)
@@ -116,7 +123,15 @@ type admissionHandler struct {
 	// with stdin or tty set for interactive commands.
 	AlwaysAllowedGroupName string
 
+	// auditer receives audit events for processing.
+	//
+	// It defaults to AuditLogger which just logs the info it receives.
 	auditer Auditer
+
+	// extendedValidator can be used to do custom validation.
+	//
+	// It defaults to NopValidator which does nothing.
+	extendedValidator Validator
 }
 
 func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
@@ -149,6 +164,15 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 		}
 	}
 
+	var validator Validator
+	validator = &NopValidator{}
+	if cfg.extendedValidationWebhookURL != "" {
+		validator, err = NewWebhookValidator(cfg.extendedValidationWebhookURL, cfg.extendedValidationWebhookCABundle)
+		if err != nil {
+			return fmt.Errorf("could not create webhook validator: %w", err)
+		}
+	}
+
 	handler := &admissionHandler{
 		kubernetesClient:     kubernetesClient,
 		accessRequestsClient: accessRequestsClient,
@@ -157,7 +181,8 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 		GrantedRoleName:        cfg.grantedRoleName,
 		AlwaysAllowedGroupName: cfg.alwaysAllowedGroupName,
 
-		auditer: auditer,
+		auditer:           auditer,
+		extendedValidator: validator,
 	}
 
 	router := mux.NewRouter()
@@ -363,6 +388,14 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 		if accessRequest.Spec.ExecOptions.Stdin || accessRequest.Spec.ExecOptions.TTY {
 			msg := "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed"
 			return false, msg, http.StatusForbidden, err
+		}
+
+		validation, err := ah.extendedValidator.ValidateAccessRequest(ctx, admissionReview.Request, accessRequest)
+		if err != nil {
+			return false, "validator failed", http.StatusInternalServerError, err
+		}
+		if validation.Status != webhooks.Valid {
+			return false, validation.Message, http.StatusBadRequest, nil
 		}
 
 		err = ah.auditer.AuditCreated(ctx, admissionReview.Request, *accessRequest)

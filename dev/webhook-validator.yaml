@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook-validator
+  labels:
+    app: webhook-validator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webhook-validator
+  template:
+    metadata:
+      labels:
+        app: webhook-validator
+    spec:
+      containers:
+        - name: webhook-validator
+          image: webhook-validator:local
+          command:
+            - "/app/webhook-validator"
+          args:
+            - "--address=0.0.0.0:9443"
+            - "--cert-file=/ssl/localhost.crt"
+            - "--key-file=/ssl/localhost.key"
+            - "-v=2"
+          ports:
+            - containerPort: 9443
+          volumeMounts:
+            - name: certs
+              mountPath: /ssl
+              readOnly: true
+      volumes:
+        - configMap:
+            name: kube-request-access-certs
+          name: certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook-validator
+spec:
+  selector:
+    app: webhook-validator
+  ports:
+    - port: 443
+      targetPort: 9443

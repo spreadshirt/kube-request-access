@@ -4,6 +4,7 @@ resources:
   - validating-admission-webhook.yaml
   # example webhooks
   - webhook-auditer.yaml
+  - webhook-validator.yaml
   # crds
   - request-crd.yaml
   - grant-crd.yaml
