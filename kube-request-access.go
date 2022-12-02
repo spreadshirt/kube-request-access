@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -24,6 +25,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 
 	accessrequestsv1 "github.com/spreadshirt/kube-request-access/apis/accessrequests/v1"
 	accessrequestsclientv1 "github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned/typed/accessrequests/v1"
@@ -70,7 +72,6 @@ func main() {
 	cmd.Flags().StringVarP(&cfg.addr, "address", "a", "localhost:8443", "Address to listen on")
 	cmd.Flags().StringVarP(&cfg.certFile, "cert-file", "c", "dev/localhost.crt", "HTTPS cert file")
 	cmd.Flags().StringVarP(&cfg.keyFile, "key-file", "k", "dev/localhost.key", "HTTPS key file")
-	cmd.Flags().BoolVarP(&cfg.verbose, "verbose", "v", false, "Enable debug logging")
 
 	cmd.Flags().StringVar(&cfg.grantedRoleName, "granted-role-name", "", "Name of the role that is given to a user temporarily when a request is granted")
 	cmd.Flags().StringVar(&cfg.alwaysAllowedGroupName, "always-allowed-group-name", "", "Name of the group whose members will be allowed to execute commands without a request and grant")
@@ -78,9 +79,16 @@ func main() {
 	cmd.Flags().StringVar(&cfg.auditWebhookURL, "audit-webhook-url", "", "URL of the audit webhook to be used")
 	cmd.Flags().StringVar(&cfg.auditWebhookCABundle, "audit-webhook-ca-bundle", "", "Path to the cert file of the audit webhook")
 
+	// add -v from klog
+	klogFlags := flag.NewFlagSet("", flag.ContinueOnError)
+	klog.InitFlags(klogFlags)
+	cmd.Flags().AddGoFlag(klogFlags.Lookup("v"))
+
+	klog.CopyStandardLogTo("WARNING")
+
 	err := cmd.Execute()
 	if err != nil {
-		logrus.Fatal(err)
+		klog.Fatal(err)
 	}
 }
 
@@ -112,10 +120,6 @@ type admissionHandler struct {
 }
 
 func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
-	if cfg.verbose {
-		logrus.SetLevel(logrus.DebugLevel)
-	}
-
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
@@ -136,7 +140,7 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 
 	var auditer Auditer
 	auditer = &AuditLogger{
-		logger: logrus.StandardLogger(),
+		logger: klog.LoggerWithName(klog.Background(), "auditer"),
 	}
 	if cfg.auditWebhookURL != "" {
 		auditer, err = NewWebhookAuditer(cfg.auditWebhookURL, cfg.auditWebhookCABundle)
@@ -157,9 +161,9 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 	}
 
 	router := mux.NewRouter()
-	router.Handle("/", handlers.CustomLoggingHandler(logrus.StandardLogger().Out, http.HandlerFunc(handler.handleAdmission), logFormatter))
+	router.Handle("/", handlers.CustomLoggingHandler(os.Stderr, http.HandlerFunc(handler.handleAdmission), logFormatter))
 
-	logrus.Infof("Listening on https://%s", cfg.addr)
+	klog.Infof("Listening on https://%s", cfg.addr)
 	err = http.ListenAndServeTLS(cfg.addr, cfg.certFile, cfg.keyFile, router)
 	if err != nil {
 		return err
@@ -168,11 +172,11 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 }
 
 func logFormatter(_ io.Writer, params handlers.LogFormatterParams) {
-	logrus.WithFields(logrus.Fields{
-		"response.size": params.Size,
-		"status.code":   params.StatusCode,
-		"request.url":   params.URL.String(),
-	}).Infof("%s %s %d", params.Request.Method, params.Request.URL.Path, params.StatusCode)
+	klog.InfoS(fmt.Sprintf("%s %s %d", params.Request.Method, params.Request.URL.Path, params.StatusCode),
+		"response.size", params.Size,
+		"status.code", params.StatusCode,
+		"request.url", params.URL.String(),
+	)
 }
 
 func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Request) {
@@ -186,14 +190,14 @@ func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Req
 	// verify the content type is accurate
 	contentType := req.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		logrus.Errorf("contentType=%s, expect application/json", contentType)
+		klog.Errorf("contentType=%s, expect application/json", contentType)
 		return
 	}
 	deserializer := codecs.UniversalDeserializer()
 	obj, gvk, err := deserializer.Decode(body, nil, nil)
 	if err != nil {
 		msg := fmt.Sprintf("Request could not be decoded: %v", err)
-		logrus.Error(msg)
+		klog.Error(msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -203,14 +207,14 @@ func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Req
 	case admissionv1.SchemeGroupVersion.WithKind("AdmissionReview"):
 		requestedAdmissionReview, ok := obj.(*admissionv1.AdmissionReview)
 		if !ok {
-			logrus.Errorf("Expected v1.AdmissionReview but got: %T", obj)
+			klog.Errorf("Expected v1.AdmissionReview but got: %T", obj)
 			return
 		}
 		responseAdmissionReview := &admissionv1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
 		allowed, msg, code, err := ah.handleReview(req.Context(), requestedAdmissionReview)
 		if err != nil {
-			logrus.WithError(err).Error("error handling admission review")
+			klog.ErrorS(err, "error handling admission review")
 			responseAdmissionReview.Response = &admissionv1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
@@ -237,7 +241,7 @@ func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Req
 		responseObj = responseAdmissionReview
 	default:
 		msg := fmt.Sprintf("Unsupported group version kind: %v", gvk)
-		logrus.Error(msg)
+		klog.Error(msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -245,13 +249,13 @@ func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Req
 	// klog.V(2).Info(fmt.Sprintf("sending response: %v", responseObj))
 	respBytes, err := json.Marshal(responseObj)
 	if err != nil {
-		logrus.Error(err)
+		klog.ErrorS(err, "could not encode json")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(respBytes); err != nil {
-		logrus.Error(err)
+		klog.ErrorS(err, "could not send response")
 	}
 }
 
@@ -312,11 +316,13 @@ var admissionReviewExample = `
 `
 
 func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *admissionv1.AdmissionReview) (allowed bool, response string, code int32, err error) {
-	if logrus.GetLevel() == logrus.DebugLevel {
+	if klog.V(3).Enabled() {
 		buf := new(bytes.Buffer)
 		enc := json.NewEncoder(buf)
 		_ = enc.Encode(admissionReview)
-		logrus.WithField("admission-review", buf.String()).Debug("got admission review")
+		klog.InfoS("got admission review",
+			"admission-review", buf.String(),
+		)
 	}
 
 	deserializer := codecs.UniversalDeserializer()
@@ -412,7 +418,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 				return false, err.Error(), http.StatusInternalServerError, err
 			}
 
-			logrus.Debugf("created rolebinding %q (with role %q) to account %q", roleBinding.Name, ah.GrantedRoleName, accessRequest.Spec.UserInfo.Username)
+			klog.V(2).Infof("created rolebinding %q (with role %q) to account %q", roleBinding.Name, ah.GrantedRoleName, accessRequest.Spec.UserInfo.Username)
 		}
 
 		// TODO: create an audit event for this ($user granted ...)
@@ -454,18 +460,18 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 		}
 
 		currentUser := admissionReview.Request.UserInfo
-		logrus.Debugf("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
+		klog.V(2).Infof("found %d/%v accessrequests for %q", len(accessRequests.Items), accessRequests.GetRemainingItemCount(), currentUser.Username)
 
 		var match *accessrequestsv1.AccessRequest
 		for _, accessRequest := range accessRequests.Items {
-			logrus.Debugf("uid %v %q %q", accessRequest.Spec.UserInfo.Username == currentUser.Username, accessRequest.Spec.UserInfo.Username, currentUser.Username)
-			logrus.Debugf("resource %v %q %q", accessRequest.Spec.ForObject.Resource == admissionReview.Request.Resource, accessRequest.Spec.ForObject.Resource, admissionReview.Request.Resource)
-			logrus.Debugf("subresource %v %q %q", accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource, accessRequest.Spec.ForObject.SubResource, admissionReview.Request.SubResource)
-			logrus.Debugf("name %v %q %q", accessRequest.Spec.ForObject.Name == admissionReview.Request.Name, accessRequest.Spec.ForObject.Name, admissionReview.Request.Name)
-			logrus.Debugf("namespace %v %q %q", accessRequest.Spec.ForObject.Namespace == admissionReview.Request.Namespace, accessRequest.Spec.ForObject.Namespace, admissionReview.Request.Namespace)
-			logrus.Debugf("execOptions %v %q %q", equality.Semantic.DeepEqual(accessRequest.Spec.ExecOptions, podExecOptions), accessRequest.Spec.ExecOptions, podExecOptions)
+			klog.V(3).Infof("uid %v %q %q", accessRequest.Spec.UserInfo.Username == currentUser.Username, accessRequest.Spec.UserInfo.Username, currentUser.Username)
+			klog.V(3).Infof("resource %v %q %q", accessRequest.Spec.ForObject.Resource == admissionReview.Request.Resource, accessRequest.Spec.ForObject.Resource, admissionReview.Request.Resource)
+			klog.V(3).Infof("subresource %v %q %q", accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource, accessRequest.Spec.ForObject.SubResource, admissionReview.Request.SubResource)
+			klog.V(3).Infof("name %v %q %q", accessRequest.Spec.ForObject.Name == admissionReview.Request.Name, accessRequest.Spec.ForObject.Name, admissionReview.Request.Name)
+			klog.V(3).Infof("namespace %v %q %q", accessRequest.Spec.ForObject.Namespace == admissionReview.Request.Namespace, accessRequest.Spec.ForObject.Namespace, admissionReview.Request.Namespace)
+			klog.V(3).Infof("execOptions %v %q %q", equality.Semantic.DeepEqual(accessRequest.Spec.ExecOptions, podExecOptions), accessRequest.Spec.ExecOptions, podExecOptions)
 
-			logrus.Debugf("%q %q", accessRequest.Spec.ExecOptions.Command, podExecOptions.Command)
+			klog.V(3).Infof("%q %q", accessRequest.Spec.ExecOptions.Command, podExecOptions.Command)
 
 			optionsToCompare := *podExecOptions
 			// allow any command if no command was specified in request
@@ -485,7 +491,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 		}
 
 		if match == nil {
-			logrus.Error("no match")
+			klog.Error("no match")
 			return false, "", http.StatusForbidden, nil
 		}
 
@@ -497,8 +503,8 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 
 		var grantMatch *accessrequestsv1.AccessGrant
 		for _, accessGrant := range accessGrants.Items {
-			logrus.Debugf("for %q %q", accessGrant.Spec.GrantFor, match.Name)
-			logrus.Debugf("status %q", accessGrant.Status)
+			klog.V(3).Infof("for %q %q", accessGrant.Spec.GrantFor, match.Name)
+			klog.V(3).Infof("status %q", accessGrant.Status)
 			if accessGrant.Spec.GrantFor == match.Name &&
 				accessGrant.Status == accessrequestsv1.AccessGrantGranted {
 				grantMatch = &accessGrant
@@ -507,7 +513,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 		}
 
 		if grantMatch == nil {
-			logrus.Error("no grant match")
+			klog.Error("no grant match")
 			return false, "", http.StatusForbidden, nil
 		}
 

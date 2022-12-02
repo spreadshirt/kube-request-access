@@ -24,7 +24,7 @@ spec:
             - "--address=0.0.0.0:9443"
             - "--cert-file=/ssl/localhost.crt"
             - "--key-file=/ssl/localhost.key"
-            - "--verbose"
+            - "-v=2"
           ports:
             - containerPort: 9443
           volumeMounts:

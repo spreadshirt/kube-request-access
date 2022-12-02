@@ -1,9 +1,11 @@
 package main
 
 import (
-	"github.com/sirupsen/logrus"
+	"fmt"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 
 	accessrequestsv1 "github.com/spreadshirt/kube-request-access/apis/accessrequests/v1"
 )
@@ -25,8 +27,7 @@ type Auditer interface {
 var _ Auditer = &AuditLogger{}
 
 type AuditLogger struct {
-	// TODO: should use https://pkg.go.dev/k8s.io/klog/v2 instead?  (standard for Kubernetes things)
-	logger *logrus.Logger
+	logger klog.Logger
 }
 
 func (al *AuditLogger) AuditExec(request *admissionv1.AdmissionRequest, isAllowed bool, execOptions *corev1.PodExecOptions, isAdmin bool) error {
@@ -34,19 +35,16 @@ func (al *AuditLogger) AuditExec(request *admissionv1.AdmissionRequest, isAllowe
 	if isAllowed {
 		decision = "allowed"
 	}
-	al.logger.WithFields(logrus.Fields{
-		"is-admin":  isAdmin,
-		"user-info": logrus.Fields{},
-	}).Infof("%s is %s to run %s on %s", request.UserInfo.Username, decision, execOptions.Command, request.Name)
+	al.logger.Info(fmt.Sprintf("%s is %s to run %s on %s", request.UserInfo.Username, decision, execOptions.Command, request.Name),
+		"is-admin", isAdmin,
+		"user-info", request.UserInfo,
+	)
 	return nil
 }
 
 func (al *AuditLogger) AuditCreated(request *admissionv1.AdmissionRequest, accessRequest accessrequestsv1.AccessRequest) error {
-	al.logger.WithFields(logrus.Fields{
-		"user-info": logrus.Fields{
-			"uid":      request.UserInfo.UID,
-			"username": request.UserInfo.Username,
-		},
-	}).Infof("%s has created a request to run %s on %s", request.UserInfo.Username, accessRequest.Spec.ExecOptions.Command, accessRequest.Spec.ForObject.Name)
+	al.logger.Info(fmt.Sprintf("%s has created a request to run %s on %s", request.UserInfo.Username, accessRequest.Spec.ExecOptions.Command, accessRequest.Spec.ForObject.Name),
+		"user-info", request.UserInfo,
+	)
 	return nil
 }

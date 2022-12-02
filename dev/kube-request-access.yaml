@@ -28,7 +28,7 @@ spec:
             - "--always-allowed-group-name=system:masters"
             - "--audit-webhook-url=https://webhook-auditer.default.svc/audit"
             - "--audit-webhook-ca-bundle=/ssl/localhost.crt"
-            - "--verbose"
+            - "-v=3"
           ports:
             - containerPort: 8443
           volumeMounts:

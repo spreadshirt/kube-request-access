@@ -5,12 +5,12 @@ go 1.19
 require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
-	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.2.1
 	k8s.io/api v0.0.0-20221026235553-5794fb8999af
 	k8s.io/apimachinery v0.23.14-rc.0
 	k8s.io/cli-runtime v0.0.0-20221027003536-e4bd4c19711c
 	k8s.io/client-go v0.0.0-20221027000126-d33f57bea097
+	k8s.io/klog/v2 v2.80.1
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed
 )
 
@@ -61,7 +61,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/kustomize/api v0.10.1 // indirect
