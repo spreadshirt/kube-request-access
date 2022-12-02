@@ -365,7 +365,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			return false, msg, http.StatusForbidden, err
 		}
 
-		err = ah.auditer.AuditCreated(admissionReview.Request, *accessRequest)
+		err = ah.auditer.AuditCreated(ctx, admissionReview.Request, *accessRequest)
 		if err != nil {
 			return false, "audit failed", http.StatusInternalServerError, err
 		}
@@ -441,7 +441,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			}
 
 			if isAlwaysAllowed {
-				err = ah.auditer.AuditExec(admissionReview.Request, true, podExecOptions, true)
+				err = ah.auditer.AuditExec(ctx, admissionReview.Request, true, podExecOptions, true)
 				if err != nil {
 					return false, "audit failed", http.StatusInternalServerError, err
 				}
@@ -554,7 +554,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			return false, msg, http.StatusForbidden, err
 		}
 
-		err = ah.auditer.AuditExec(admissionReview.Request, true, podExecOptions, false)
+		err = ah.auditer.AuditExec(ctx, admissionReview.Request, true, podExecOptions, false)
 		if err != nil {
 			return false, "audit failed", http.StatusInternalServerError, err
 		}

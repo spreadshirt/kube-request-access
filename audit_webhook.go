@@ -72,8 +72,8 @@ func NewWebhookAuditer(webhookURL string, certFile string) (Auditer, error) {
 
 var _ Auditer = &AuditWebhook{}
 
-func (aw *AuditWebhook) AuditExec(request *admissionv1.AdmissionRequest, isAllowed bool, execOptions *corev1.PodExecOptions, isAdmin bool) error {
-	return aw.sendRequest(context.TODO(), webhooks.AuditTypeExec, &webhooks.AuditExecData{
+func (aw *AuditWebhook) AuditExec(ctx context.Context, request *admissionv1.AdmissionRequest, isAllowed bool, execOptions *corev1.PodExecOptions, isAdmin bool) error {
+	return aw.sendRequest(ctx, webhooks.AuditTypeExec, &webhooks.AuditExecData{
 		Request:     request,
 		IsAllowed:   isAllowed,
 		ExecOptions: execOptions,
@@ -81,8 +81,8 @@ func (aw *AuditWebhook) AuditExec(request *admissionv1.AdmissionRequest, isAllow
 	})
 }
 
-func (aw *AuditWebhook) AuditCreated(request *admissionv1.AdmissionRequest, accessRequest accessrequestsv1.AccessRequest) error {
-	return aw.sendRequest(context.TODO(), webhooks.AuditTypeCreated, &webhooks.AuditCreateData{
+func (aw *AuditWebhook) AuditCreated(ctx context.Context, request *admissionv1.AdmissionRequest, accessRequest accessrequestsv1.AccessRequest) error {
+	return aw.sendRequest(ctx, webhooks.AuditTypeCreated, &webhooks.AuditCreateData{
 		Request:       request,
 		AccessRequest: accessRequest,
 	})
