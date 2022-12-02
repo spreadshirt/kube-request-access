@@ -83,6 +83,23 @@ func (ws *webhookServer) handleWebhook(w http.ResponseWriter, req *http.Request)
 			createData.Request.UserInfo.Username,
 			createData.AccessRequest.Spec.ExecOptions.Command,
 			createData.AccessRequest.Spec.ForObject.Name)
+	case webhooks.AuditTypeGranted:
+		var grantData webhooks.AuditGrantData
+		err := dec.Decode(&grantData)
+		if err != nil {
+			klog.ErrorS(err, "invalid grant data received")
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+
+		if klog.V(3).Enabled() {
+			klog.InfoS("grant info", "grant.info", fmt.Sprintf("%#v", grantData))
+		}
+
+		klog.InfoS(fmt.Sprintf("%s has granted %s by %s", grantData.AccessGrant.Spec.GrantedBy.Username, grantData.AccessRequest.Name, grantData.AccessRequest.Spec.UserInfo.Username),
+			"requested-by", grantData.AccessRequest.Spec.UserInfo.Username,
+			"granted-by", grantData.AccessGrant.Spec.GrantedBy.Username,
+		)
 	case webhooks.AuditTypeExec:
 		var execData webhooks.AuditExecData
 		err := dec.Decode(&execData)
@@ -98,6 +115,7 @@ func (ws *webhookServer) handleWebhook(w http.ResponseWriter, req *http.Request)
 
 		klog.Infof("%s is running %s on %s", execData.Request.UserInfo.Username, execData.ExecOptions.Command, execData.Request.Name)
 	default:
+		klog.Errorf("unknown audit type %q", req.URL.Query().Get("type"))
 		http.Error(w, fmt.Sprintf("unknown audit type %q", req.URL.Query().Get("type")), http.StatusBadRequest)
 	}
 }

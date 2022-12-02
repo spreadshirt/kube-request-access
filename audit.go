@@ -23,6 +23,9 @@ type Auditer interface {
 	//
 	// This can be used to notify the team responsible to review and grant the requests, for example.
 	AuditCreated(ctx context.Context, request *admissionv1.AdmissionRequest, accessRequest accessrequestsv1.AccessRequest) error
+
+	// AuditGranted is called when a request has been granted.
+	AuditGranted(ctx context.Context, request *admissionv1.AdmissionRequest, accessGrant *accessrequestsv1.AccessGrant, accessRequest *accessrequestsv1.AccessRequest) error
 }
 
 var _ Auditer = &AuditLogger{}
@@ -45,7 +48,15 @@ func (al *AuditLogger) AuditExec(_ context.Context, request *admissionv1.Admissi
 
 func (al *AuditLogger) AuditCreated(_ context.Context, request *admissionv1.AdmissionRequest, accessRequest accessrequestsv1.AccessRequest) error {
 	al.logger.Info(fmt.Sprintf("%s has created a request to run %s on %s", request.UserInfo.Username, accessRequest.Spec.ExecOptions.Command, accessRequest.Spec.ForObject.Name),
-		"user-info", request.UserInfo,
+		"requested-by", accessRequest.Spec.UserInfo.Username,
+	)
+	return nil
+}
+
+func (al *AuditLogger) AuditGranted(_ context.Context, request *admissionv1.AdmissionRequest, accessGrant *accessrequestsv1.AccessGrant, accessRequest *accessrequestsv1.AccessRequest) error {
+	al.logger.Info(fmt.Sprintf("%s has granted %s by %s", accessGrant.Spec.GrantedBy.Username, accessRequest.Name, accessRequest.Spec.UserInfo.Username),
+		"requested-by", accessRequest.Spec.UserInfo.Username,
+		"granted-by", accessGrant.Spec.GrantedBy.Username,
 	)
 	return nil
 }

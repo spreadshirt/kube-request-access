@@ -13,6 +13,8 @@ const (
 	AuditTypeExec = "audit-exec"
 	// AuditTypeCreated marks that an Auditer supports the AuditCreated method.
 	AuditTypeCreated = "audit-created"
+	// AuditTypeGranted marks that an Auditer supports the AuditGranted method.
+	AuditTypeGranted = "audit-granted"
 )
 
 type AuditExecData struct {
@@ -25,4 +27,10 @@ type AuditExecData struct {
 type AuditCreateData struct {
 	Request       *admissionv1.AdmissionRequest  `json:"request"`
 	AccessRequest accessrequestsv1.AccessRequest `json:"accessRequest"`
+}
+
+type AuditGrantData struct {
+	Request       *admissionv1.AdmissionRequest   `json:"request"`
+	AccessRequest *accessrequestsv1.AccessRequest `json:"accessRequest"`
+	AccessGrant   *accessrequestsv1.AccessGrant   `json:"accessGrant"`
 }

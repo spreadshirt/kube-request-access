@@ -88,6 +88,14 @@ func (aw *AuditWebhook) AuditCreated(ctx context.Context, request *admissionv1.A
 	})
 }
 
+func (aw *AuditWebhook) AuditGranted(ctx context.Context, request *admissionv1.AdmissionRequest, accessGrant *accessrequestsv1.AccessGrant, accessRequest *accessrequestsv1.AccessRequest) error {
+	return aw.sendRequest(ctx, webhooks.AuditTypeGranted, &webhooks.AuditGrantData{
+		Request:       request,
+		AccessGrant:   accessGrant,
+		AccessRequest: accessRequest,
+	})
+}
+
 func (aw *AuditWebhook) sendRequest(ctx context.Context, auditType string, data interface{}) error {
 	buf := new(bytes.Buffer)
 	enc := json.NewEncoder(buf)

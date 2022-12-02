@@ -421,7 +421,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			klog.V(2).Infof("created rolebinding %q (with role %q) to account %q", roleBinding.Name, ah.GrantedRoleName, accessRequest.Spec.UserInfo.Username)
 		}
 
-		// TODO: create an audit event for this ($user granted ...)
+		err = ah.auditer.AuditGranted(ctx, admissionReview.Request, accessGrant, accessRequest)
+		if err != nil {
+			return false, "audit failed", http.StatusInternalServerError, err
+		}
 
 		return true, "", http.StatusOK, nil
 	case corev1.SchemeGroupVersion.WithKind("PodExecOptions"):
