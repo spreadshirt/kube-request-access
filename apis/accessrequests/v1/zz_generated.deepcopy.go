@@ -183,6 +183,13 @@ func (in *AccessRequestSpec) DeepCopyInto(out *AccessRequestSpec) {
 		*out = new(corev1.PodExecOptions)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.CustomKeys != nil {
+		in, out := &in.CustomKeys, &out.CustomKeys
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 

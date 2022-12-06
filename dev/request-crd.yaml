@@ -89,6 +89,9 @@ spec:
                     kind:
                       type: string
                       pattern: "^PodExecOptions$"
+                customKeys:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
   scope: Namespaced
   names:
     # plural name to be used in the URL: /apis/<group>/<version>/<plural>

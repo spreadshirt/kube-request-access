@@ -81,7 +81,16 @@ func (ws *webhookServer) handleWebhook(w http.ResponseWriter, req *http.Request)
 		Status:  webhooks.Valid,
 		Message: "all is well",
 	}
-	klog.V(2).InfoS(fmt.Sprintf("validating %s as valid", validateData.Request.Name),
+
+	exampleKey, ok := validateData.AccessRequest.Spec.CustomKeys["example-key"]
+	if ok && exampleKey != "must-match-this-key" {
+		validationResult = webhooks.ValidationResult{
+			Status:  webhooks.Invalid,
+			Message: fmt.Sprintf("example-key must always have the value %q", "must-match-this-key"),
+		}
+	}
+
+	klog.V(2).InfoS(fmt.Sprintf("validating %s as %s", validateData.Request.Name, validationResult.Status),
 		"validate.result", validationResult,
 	)
 	enc := json.NewEncoder(w)

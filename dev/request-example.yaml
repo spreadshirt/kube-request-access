@@ -28,3 +28,5 @@ spec:
     command:
       - "ls"
       - "-l"
+  customKeys:
+    ticket: ABC-12345

@@ -24,6 +24,7 @@ type AccessRequestSpec struct {
 	ForObject   AccessRequestForObject     `json:"forObject"`
 	ValidFor    string                     `json:"validFor,omitempty"`
 	ExecOptions *corev1.PodExecOptions     `json:"execOptions"`
+	CustomKeys  map[string]string          `json:"customKeys"`
 }
 
 type AccessRequestForObject struct {
