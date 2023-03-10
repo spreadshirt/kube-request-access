@@ -1,4 +1,6 @@
-*
-!kube-request-access
-!webhook-auditer
-!webhook-validator
+# dependencies
+/code-generator
+# binaries
+/kube-request-access
+/webhook-auditer
+/webhook-validator
