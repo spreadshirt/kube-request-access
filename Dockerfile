@@ -1,16 +1,13 @@
-FROM golang:1.19.3 AS gobuild
+FROM docker.io/golang:1.20-alpine3.17 as builder
 
-RUN adduser --gecos 'appuser' --system appuser --uid 1000
+WORKDIR /build
 
-WORKDIR /app
+COPY . .
+RUN go build .
 
-FROM scratch
+FROM alpine:3.17
 
-COPY --from=gobuild /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=gobuild /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=gobuild /etc/passwd /etc/passwd
-
-COPY --from=gobuild /etc/resolv.conf /etc/resolv.conf
+RUN apk add --no-cache shadow && useradd --home-dir /dev/null --shell /bin/false appuser && apk del shadow
 
 USER appuser
 
@@ -18,4 +15,4 @@ WORKDIR /app
 
 CMD ["/app/kube-request-access", "--addr=0.0.0.0:8443"]
 
-ADD kube-request-access /app/kube-request-access
+COPY --from=builder /build/kube-request-access /app/
