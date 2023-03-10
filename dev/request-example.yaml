@@ -1,0 +1,32 @@
+apiVersion: spreadgroup.com/v1
+kind: AccessRequest
+metadata:
+  generateName: "accessrequest-"
+  namespace: default
+  labels:
+    username: jane
+spec:
+  userInfo:
+    username: jane
+  forObject:
+    resource:
+      group: ""
+      version: v1
+      resource: pods
+    subResource: exec
+    name: nginx-9456bbbf9-dz5ww
+    namespace: default
+  validFor: 1h
+  execOptions:
+    apiVersion: v1
+    kind: PodExecOptions
+    stdin: false
+    stdout: true
+    stderr: true
+    tty: false
+    container: nginx
+    command:
+      - "ls"
+      - "-l"
+  customKeys:
+    ticket: ABC-12345

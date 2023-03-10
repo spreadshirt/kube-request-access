@@ -1,0 +1,61 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-request-access-permissions
+rules:
+  - apiGroups:
+      - certificates.k8s.io
+    resources:
+      - signers
+    resourceNames:
+      - kubernetes.io/kubelet-serving
+    verbs:
+      - approve
+  - apiGroups:
+      - "certificates.k8s.io"
+    resources:
+      - certificatesigningrequests
+      - certificatesigningrequests/approval
+    verbs:
+      - get
+      - create
+      - delete
+      - update
+  # allow granting devs the permission
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    verbs:
+      - create
+  # needs to hold the same permission as the role, otherwise we get "is attempting to grant RBAC permissions not currently held"
+  - apiGroups:
+      - ""
+    resources:
+      - pods/exec
+    verbs:
+      - create
+  # crd management
+  - apiGroups:
+      - spreadgroup.com
+    resources:
+      - accessrequests
+      - accessgrants
+    verbs:
+      - get
+      - list
+      - delete
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-request-access-permissions
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-request-access-permissions
+subjects:
+  - kind: ServiceAccount
+    name: kube-request-access
+    namespace: default

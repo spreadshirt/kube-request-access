@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -euo pipefail
+
+CLUSTER_NAME="${CLUSTER_NAME:-k3s-default}"
+CONTEXT="k3d-$CLUSTER_NAME"
+
+echo "  Rebuilding and pushing to k3d"
+make docker
+k3d image import --mode=auto kube-request-access:local
+k3d image import --mode=auto webhook-auditer:local
+k3d image import --mode=auto webhook-validator:local
+
+echo
+echo "  Restarting"
+kubectl --context "$CONTEXT" delete pods -l app=kube-request-access
+kubectl --context "$CONTEXT" delete pods -l app=webhook-auditer
+kubectl --context "$CONTEXT" delete pods -l app=webhook-validator
+
+if [ "$#" -ge 1 ] && [ "$1" = "--watch" ]; then
+  kubectl --context "$CONTEXT" rollout status --watch deployment/kube-request-access deployment/webhook-validator
+
+  echo
+  echo "  Logs below"
+  kubectl logs --context "$CONTEXT" --follow "$(kubectl --context "$CONTEXT" get pods --sort-by "{.startTime}" -l app=kube-request-access | tail -n+2 | cut -d' ' -f1)"
+fi

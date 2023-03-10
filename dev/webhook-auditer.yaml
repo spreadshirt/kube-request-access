@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook-auditer
+  labels:
+    app: webhook-auditer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webhook-auditer
+  template:
+    metadata:
+      labels:
+        app: webhook-auditer
+    spec:
+      containers:
+        - name: webhook-auditer
+          image: webhook-auditer:local
+          command:
+            - "/app/webhook-auditer"
+          args:
+            - "--address=0.0.0.0:9443"
+            - "--cert-file=/ssl/localhost.crt"
+            - "--key-file=/ssl/localhost.key"
+            - "-v=2"
+          ports:
+            - containerPort: 9443
+          volumeMounts:
+            - name: certs
+              mountPath: /ssl
+              readOnly: true
+      volumes:
+        - configMap:
+            name: kube-request-access-certs
+          name: certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook-auditer
+spec:
+  selector:
+    app: webhook-auditer
+  ports:
+    - port: 443
+      targetPort: 9443

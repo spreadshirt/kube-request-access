@@ -1,0 +1,70 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-request-access
+  labels:
+    app: kube-request-access
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-request-access
+  template:
+    metadata:
+      labels:
+        app: kube-request-access
+    spec:
+      containers:
+        - name: kube-request-access
+          image: kube-request-access:local
+          command:
+            - "/app/kube-request-access"
+          args:
+            - "--address=0.0.0.0:8443"
+            - "--cert-file=/ssl/localhost.crt"
+            - "--key-file=/ssl/localhost.key"
+            - "--granted-role-name=developer-exec"
+            - "--always-allowed-group-name=system:masters"
+            - "--audit-webhook-url=https://webhook-auditer.default.svc/audit"
+            - "--audit-webhook-ca-bundle=/ssl/localhost.crt"
+            - "--extended-validation-webhook-url=https://webhook-validator.default.svc/validate"
+            - "--extended-validation-webhook-ca-bundle=/ssl/localhost.crt"
+            - "-v=3"
+          ports:
+            - containerPort: 8443
+          volumeMounts:
+            # - mountPath: /ssl
+            #   name: ssl-volume
+            #   readOnly: true
+            - name: certs
+              mountPath: /ssl
+              readOnly: true
+      volumes:
+        - name: ssl-volume
+          emptyDir: {}
+        - configMap:
+            name: kube-request-access-certs
+          name: certs
+      serviceAccountName: kube-request-access
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-request-access
+  namespace: default
+  labels:
+    app: kube-request-access
+secrets:
+  - name: kube-request-access-permissions
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-request-access
+spec:
+  selector:
+    app: kube-request-access
+  ports:
+    - port: 443
+      targetPort: 8443

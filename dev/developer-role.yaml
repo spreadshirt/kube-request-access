@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  - apps
+  resources:
+  - pods
+  - deployments
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - delete
+- apiGroups: ["spreadgroup.com"]
+  resources:
+  - accessrequests
+  verbs:
+  - create
+  - get

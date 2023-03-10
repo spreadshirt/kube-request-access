@@ -1,0 +1,63 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  # name must match the spec fields below, and be in the form: <plural>.<group>
+  name: accessgrants.spreadgroup.com
+spec:
+  # group name to use for REST API: /apis/<group>/<version>
+  group: spreadgroup.com
+  # list of versions supported by this CustomResourceDefinition
+  versions:
+    - name: v1
+      # Each version can be enabled/disabled by Served flag.
+      served: true
+      # One and only one version must be marked as the storage version.
+      storage: true
+      additionalPrinterColumns:
+      - name: request
+        jsonPath: '.spec.grantFor'
+        type: string
+      - name: granted by
+        jsonPath: '.spec.grantedBy.username'
+        type: string
+      - name: status
+        jsonPath: '.status'
+        type: string
+      - name: age
+        jsonPath: '.metadata.creationTimestamp'
+        type: date
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - grantedBy
+                - grantFor
+              properties:
+                grantedBy:
+                  type: object
+                  required:
+                    - username
+                  properties:
+                    username:
+                      type: string
+                grantFor:
+                  type: string
+            status:
+              type: string
+              enum:
+                - granted
+                - denied
+  scope: Namespaced
+  names:
+    # plural name to be used in the URL: /apis/<group>/<version>/<plural>
+    plural: accessgrants
+    # singular name to be used as an alias on the CLI and for display
+    singular: accessgrant
+    # kind is normally the CamelCased singular type. Your resource manifests use this.
+    kind: AccessGrant
+    # shortNames allow shorter string to match your resource on the CLI
+    shortNames:
+    - acq

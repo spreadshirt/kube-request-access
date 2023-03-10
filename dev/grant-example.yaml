@@ -1,0 +1,10 @@
+apiVersion: spreadgroup.com/v1
+kind: AccessGrant
+metadata:
+  generateName: grant-
+  namespace: default
+spec:
+  grantedBy:
+    username: system:admin
+  grantFor: accessrequest-6z4wd
+status: "granted"

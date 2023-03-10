@@ -1,0 +1,4 @@
+*
+!kube-request-access
+!webhook-auditer
+!webhook-validator

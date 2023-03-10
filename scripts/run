@@ -1,0 +1,42 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# kill child processes on exit
+trap 'kill -HUP -$$; exit' SIGINT
+
+if ! which k3d &> /dev/null; then
+  echo "k3d was not found, please install it from https://k3d.io"
+  exit 1
+fi
+
+if ! which entr &> /dev/null; then
+  echo "entr was not found, please install it so we can restart on changes"
+  exit 1
+fi
+
+K8S_UPSTREAM_VERSION="${K8S_UPSTREAM_VERSION:-}"
+K8S_VERSION="${K8S_VERSION:-1.23.7}"
+CLUSTER_NAME="${CLUSTER_NAME:-k3s-default}"
+CONTEXT="k3d-$CLUSTER_NAME"
+
+if [ -n "$K8S_UPSTREAM_VERSION" ] && [ "$K8S_VERSION" != "$K8S_UPSTREAM_VERSION" ]; then
+  echo "!!! $(tput bold)$(tput setaf 1)WARNING$(tput sgr0) local kubernetes version '$K8S_VERSION' does not match upstream kubernetes version '$K8S_UPSTREAM_VERSION'" 1>&2
+fi
+
+if ! k3d cluster list | grep "$CLUSTER_NAME"; then
+  echo ">>> Cluster does not exist yet, creating $CLUSTER_NAME @ $K8S_VERSION"
+
+  k3d cluster create --image="rancher/k3s:$K8S_VERSION-k3s1"
+fi
+
+echo ">>> Starting kube-request-access in k3s"
+# redeploy kubernetes yaml files if they change
+git ls-files -co dev | entr -c -r kubectl --context "$CONTEXT" apply -k dev/&
+# redeploy kube-request-access to kubernetes if it changes
+git ls-files -co | grep -v '^dev/' | CONTEXT="$CONTEXT" entr -c -r ./scripts/restart --watch&
+sleep 5
+
+echo ">>> Starting kube-request-access locally"
+# run locally to see errors there as well
+git ls-files -co '*.go' | go run .

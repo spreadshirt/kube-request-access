@@ -1,0 +1,105 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  # name must match the spec fields below, and be in the form: <plural>.<group>
+  name: accessrequests.spreadgroup.com
+spec:
+  # group name to use for REST API: /apis/<group>/<version>
+  group: spreadgroup.com
+  # list of versions supported by this CustomResourceDefinition
+  versions:
+    - name: v1
+      # Each version can be enabled/disabled by Served flag.
+      served: true
+      # One and only one version must be marked as the storage version.
+      storage: true
+      additionalPrinterColumns:
+        - name: user
+          jsonPath: '.spec.userInfo.username'
+          type: string
+        - name: for
+          jsonPath: '.spec.forObject.name'
+          type: string
+        - name: command
+          jsonPath: '.spec.execOptions.command'
+          type: string
+        - name: duration
+          jsonPath: '.spec.validFor'
+          type: string
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - userInfo
+                - forObject
+                - execOptions
+              properties:
+                userInfo:
+                  type: object
+                  required:
+                    - username
+                  properties:
+                    username:
+                      type: string
+                forObject:
+                  type: object
+                  required:
+                    - resource
+                    - subResource
+                    - name
+                    - namespace
+                  properties:
+                    resource:
+                      type: object
+                      properties:
+                        group:
+                          type: string
+                        version:
+                          type: string
+                        resource:
+                          type: string
+                    subResource:
+                      type: string
+                      pattern: "^exec$"
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                      pattern: "^default$"
+                validFor:
+                  description: |
+                    Duration that this exec should be granted for.  If granted the duration will be the creation time of the grant + this duration.
+                
+                    The server implementation currently only allows a maximum validity of 12 hours, because long-running access probably needs other
+                    solutions.
+                  type: string
+                  pattern: "[0-9]+(m|h)" # go duration, but restricted because we don't really need lower precision than a millisecond
+                  example:
+                    - "30m"
+                    - "1h"
+                    - "12h"
+                execOptions:
+                  type: object
+                  x-kubernetes-embedded-resource: true
+                  x-kubernetes-preserve-unknown-fields: true
+                  properties:
+                    kind:
+                      type: string
+                      pattern: "^PodExecOptions$"
+                customKeys:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+  scope: Namespaced
+  names:
+    # plural name to be used in the URL: /apis/<group>/<version>/<plural>
+    plural: accessrequests
+    # singular name to be used as an alias on the CLI and for display
+    singular: accessrequest
+    # kind is normally the CamelCased singular type. Your resource manifests use this.
+    kind: AccessRequest
+    # shortNames allow shorter string to match your resource on the CLI
+    shortNames:
+    - acr

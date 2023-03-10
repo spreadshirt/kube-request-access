@@ -1,0 +1,20 @@
+resources:
+  - kube-request-access.yaml
+  - kube-request-access-rbac.yaml
+  - validating-admission-webhook.yaml
+  # example webhooks
+  - webhook-auditer.yaml
+  - webhook-validator.yaml
+  # crds
+  - request-crd.yaml
+  - grant-crd.yaml
+  # example deployment to play around with
+  - nginx-deployment.yaml
+  # example role for "developers" locally
+  - developer-role.yaml
+  - developer-exec-role.yaml
+configMapGenerator:
+  - name: kube-request-access-certs
+    files:
+      - localhost.key
+      - localhost.crt
