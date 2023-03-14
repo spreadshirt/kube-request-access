@@ -57,6 +57,7 @@ type admissionConfig struct {
 
 	grantedRoleName        string
 	alwaysAllowedGroupName string
+	usernamePrefix         string
 
 	auditWebhookURL      string
 	auditWebhookCABundle string
@@ -80,6 +81,7 @@ func main() {
 
 	cmd.Flags().StringVar(&cfg.grantedRoleName, "granted-role-name", "", "Name of the role that is given to a user temporarily when a request is granted")
 	cmd.Flags().StringVar(&cfg.alwaysAllowedGroupName, "always-allowed-group-name", "", "Name of the group whose members will be allowed to execute commands without a request and grant")
+	cmd.Flags().StringVar(&cfg.usernamePrefix, "username-prefix", "", "Prefix for usernames to use when verifying and granting access (optional)")
 
 	cmd.Flags().StringVar(&cfg.auditWebhookURL, "audit-webhook-url", "", "URL of the audit webhook to be used")
 	cmd.Flags().StringVar(&cfg.auditWebhookCABundle, "audit-webhook-ca-bundle", "", "Path to the cert file of the audit webhook")
@@ -123,6 +125,10 @@ type admissionHandler struct {
 	// Additionally they won't have the regular restrictions applied, like exec
 	// with stdin or tty set for interactive commands.
 	AlwaysAllowedGroupName string
+
+	// UsernamePrefix can be set to work with systems that add a prefix to the
+	// usernames in Kubernetes.
+	UsernamePrefix string
 
 	// auditer receives audit events for processing.
 	//
@@ -178,6 +184,7 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 		MaxValidFor:            DefaultMaxValidFor,
 		GrantedRoleName:        cfg.grantedRoleName,
 		AlwaysAllowedGroupName: cfg.alwaysAllowedGroupName,
+		UsernamePrefix:         cfg.usernamePrefix,
 
 		auditer:           auditer,
 		extendedValidator: validator,
@@ -383,6 +390,9 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			err := fmt.Errorf("expected v1.AccessRequest but got: %T", obj)
 			return false, "", http.StatusInternalServerError, err
 		}
+		if ah.UsernamePrefix != "" {
+			accessRequest.Spec.UserInfo.Username = ah.UsernamePrefix + accessRequest.Spec.UserInfo.Username
+		}
 
 		if admissionReview.Request.UserInfo.Username != accessRequest.Spec.UserInfo.Username {
 			msg := fmt.Sprintf("you can only request access for yourself (requested for %q, but authenticated as %q)",
@@ -439,6 +449,9 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 		if err != nil {
 			err = fmt.Errorf("could not find matching access request: %w", err)
 			return false, err.Error(), http.StatusBadRequest, err
+		}
+		if ah.UsernamePrefix != "" {
+			accessRequest.Spec.UserInfo.Username = ah.UsernamePrefix + accessRequest.Spec.UserInfo.Username
 		}
 
 		if ah.GrantedRoleName != "" {
@@ -519,6 +532,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 
 		var match *accessrequestsv1.AccessRequest
 		for _, accessRequest := range accessRequests.Items {
+			if ah.UsernamePrefix != "" {
+				accessRequest.Spec.UserInfo.Username = ah.UsernamePrefix + accessRequest.Spec.UserInfo.Username
+			}
+
 			klog.V(3).Infof("uid %v %q %q", accessRequest.Spec.UserInfo.Username == currentUser.Username, accessRequest.Spec.UserInfo.Username, currentUser.Username)
 			klog.V(3).Infof("resource %v %q %q", accessRequest.Spec.ForObject.Resource == admissionReview.Request.Resource, accessRequest.Spec.ForObject.Resource, admissionReview.Request.Resource)
 			klog.V(3).Infof("subresource %v %q %q", accessRequest.Spec.ForObject.SubResource == admissionReview.Request.SubResource, accessRequest.Spec.ForObject.SubResource, admissionReview.Request.SubResource)
