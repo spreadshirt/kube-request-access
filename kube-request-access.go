@@ -184,6 +184,9 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 	}
 
 	router := mux.NewRouter()
+	router.HandleFunc("/ready", func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("ok"))
+	})
 	router.Handle("/", handlers.CustomLoggingHandler(os.Stderr, http.HandlerFunc(handler.handleAdmission), logFormatter))
 
 	klog.Infof("Listening on https://%s", cfg.addr)
