@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -135,10 +136,7 @@ type admissionHandler struct {
 }
 
 func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configOverrides := &clientcmd.ConfigOverrides{}
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	config, err := kubeConfig.ClientConfig()
+	config, err := clientcmd.BuildConfigFromFlags("", findKubeConfig())
 	if err != nil {
 		return fmt.Errorf("could not find kubernetes client config: %w", err)
 	}
@@ -194,6 +192,22 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	return nil
+}
+
+// findKubeConfig returns the path to .kube/config if it exists, or an empty string.
+func findKubeConfig() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	f, err := os.Open(path.Join(homeDir, ".kube/config"))
+	if err != nil {
+		return ""
+	}
+	f.Close()
+
+	return f.Name()
 }
 
 func logFormatter(_ io.Writer, params handlers.LogFormatterParams) {
