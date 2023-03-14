@@ -229,7 +229,9 @@ func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Req
 	// verify the content type is accurate
 	contentType := req.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		klog.Errorf("contentType=%s, expect application/json", contentType)
+		msg := fmt.Sprintf("contentType=%s, expect application/json", contentType)
+		klog.Error(msg)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 	deserializer := codecs.UniversalDeserializer()
