@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -505,22 +506,12 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			return false, "", http.StatusInternalServerError, err
 		}
 
-		if len(ah.AlwaysAllowedGroupNames) > 0 {
-			isAlwaysAllowed := false
-			for _, group := range admissionReview.Request.UserInfo.Groups {
-				if ah.AlwaysAllowedGroupNames[group] {
-					isAlwaysAllowed = true
-					break
-				}
+		if ah.isAlwaysAllowed(admissionReview.Request.UserInfo) {
+			err = ah.auditer.AuditExec(ctx, admissionReview.Request, true, podExecOptions, true)
+			if err != nil {
+				return false, "audit failed", http.StatusInternalServerError, err
 			}
-
-			if isAlwaysAllowed {
-				err = ah.auditer.AuditExec(ctx, admissionReview.Request, true, podExecOptions, true)
-				if err != nil {
-					return false, "audit failed", http.StatusInternalServerError, err
-				}
-				return true, "", http.StatusOK, nil
-			}
+			return true, "", http.StatusOK, nil
 		}
 
 		if podExecOptions.Stdin || podExecOptions.TTY {
@@ -641,4 +632,18 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 		err := fmt.Errorf("unhandled object of type %q", gvk.Group+"/"+gvk.Kind)
 		return false, "unhandled object", http.StatusInternalServerError, err
 	}
+}
+
+func (ah *admissionHandler) isAlwaysAllowed(userInfo authenticationv1.UserInfo) bool {
+	if len(ah.AlwaysAllowedGroupNames) < 1 {
+		return false
+	}
+
+	for _, group := range userInfo.Groups {
+		if ah.AlwaysAllowedGroupNames[group] {
+			return true
+		}
+	}
+
+	return false
 }
