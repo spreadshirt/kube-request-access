@@ -55,9 +55,9 @@ type admissionConfig struct {
 	keyFile  string
 	verbose  bool
 
-	grantedRoleName        string
-	alwaysAllowedGroupName string
-	usernamePrefix         string
+	grantedRoleName         string
+	alwaysAllowedGroupNames []string
+	usernamePrefix          string
 
 	auditWebhookURL      string
 	auditWebhookCABundle string
@@ -80,7 +80,7 @@ func main() {
 	cmd.Flags().StringVarP(&cfg.keyFile, "key-file", "k", "dev/localhost.key", "HTTPS key file")
 
 	cmd.Flags().StringVar(&cfg.grantedRoleName, "granted-role-name", "", "Name of the role that is given to a user temporarily when a request is granted")
-	cmd.Flags().StringVar(&cfg.alwaysAllowedGroupName, "always-allowed-group-name", "", "Name of the group whose members will be allowed to execute commands without a request and grant")
+	cmd.Flags().StringSliceVar(&cfg.alwaysAllowedGroupNames, "always-allowed-group-name", nil, "Name of a group whose members will be allowed to execute commands without a request and grant")
 	cmd.Flags().StringVar(&cfg.usernamePrefix, "username-prefix", "", "Prefix for usernames to use when verifying and granting access (optional)")
 
 	cmd.Flags().StringVar(&cfg.auditWebhookURL, "audit-webhook-url", "", "URL of the audit webhook to be used")
@@ -119,12 +119,12 @@ type admissionHandler struct {
 	// by some other system.
 	GrantedRoleName string
 
-	// AlwaysAllowedGroupName can be set to always allow users with the given
-	// group.  They won't need to request or grant and will always be allowed.
+	// AlwaysAllowedGroupNames can be set to always allow users with the given
+	// groups.  They won't need to request or grant and will always be allowed.
 	//
 	// Additionally they won't have the regular restrictions applied, like exec
 	// with stdin or tty set for interactive commands.
-	AlwaysAllowedGroupName string
+	AlwaysAllowedGroupNames map[string]bool
 
 	// UsernamePrefix can be set to work with systems that add a prefix to the
 	// usernames in Kubernetes.
@@ -181,13 +181,19 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 		kubernetesClient:     kubernetesClient,
 		accessRequestsClient: accessRequestsClient,
 
-		MaxValidFor:            DefaultMaxValidFor,
-		GrantedRoleName:        cfg.grantedRoleName,
-		AlwaysAllowedGroupName: cfg.alwaysAllowedGroupName,
-		UsernamePrefix:         cfg.usernamePrefix,
+		MaxValidFor:     DefaultMaxValidFor,
+		GrantedRoleName: cfg.grantedRoleName,
+		UsernamePrefix:  cfg.usernamePrefix,
 
 		auditer:           auditer,
 		extendedValidator: validator,
+	}
+
+	if len(cfg.alwaysAllowedGroupNames) > 0 {
+		handler.AlwaysAllowedGroupNames = make(map[string]bool, len(cfg.alwaysAllowedGroupNames))
+		for _, alwaysAllowedGroup := range cfg.alwaysAllowedGroupNames {
+			handler.AlwaysAllowedGroupNames[alwaysAllowedGroup] = true
+		}
 	}
 
 	router := mux.NewRouter()
@@ -499,10 +505,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			return false, "", http.StatusInternalServerError, err
 		}
 
-		if ah.AlwaysAllowedGroupName != "" {
+		if len(ah.AlwaysAllowedGroupNames) > 0 {
 			isAlwaysAllowed := false
 			for _, group := range admissionReview.Request.UserInfo.Groups {
-				if group == ah.AlwaysAllowedGroupName {
+				if ah.AlwaysAllowedGroupNames[group] {
 					isAlwaysAllowed = true
 					break
 				}
