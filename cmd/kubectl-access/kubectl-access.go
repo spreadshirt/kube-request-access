@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -44,7 +43,7 @@ func main() {
 
 	accessCommand := &accessCommand{
 		execOptions: &execOptions{},
-		customKeys:  keyValuesValue(map[string]string{}),
+		customKeys:  map[string]string{},
 	}
 	accessCommand.genericOptions = genericclioptions.NewConfigFlags(true)
 	accessCommand.genericOptions.AddFlags(cmd.PersistentFlags())
@@ -71,7 +70,7 @@ func main() {
 	requestExecCmd.Flags().StringVarP(&accessCommand.execOptions.Container, "container", "c", "", `Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the
 container to be attached or the first container in the pod will be chosen`)
 	requestExecCmd.Flags().DurationVarP(&accessCommand.validFor, "valid-for", "d", 0, "Amount of the that the access is requested for (command will only be allowed once if not specified)")
-	requestExecCmd.Flags().VarP(&accessCommand.customKeys, "custom-key", "k", "Custom key-value pairs to set")
+	requestExecCmd.Flags().StringToStringVarP(&accessCommand.customKeys, "custom-key", "k", nil, "Custom key-value pairs to set")
 	requestCmd.AddCommand(requestExecCmd)
 
 	grantCmd := &cobra.Command{
@@ -93,40 +92,12 @@ container to be attached or the first container in the pod will be chosen`)
 	}
 }
 
-type keyValuesValue map[string]string
-
-func (kvv keyValuesValue) String() string {
-	buf := new(bytes.Buffer)
-	first := true
-	for k, v := range kvv {
-		if !first {
-			fmt.Fprint(buf, ",")
-		}
-		first = false
-		fmt.Fprintf(buf, "%s=%s", k, v)
-	}
-	return buf.String()
-}
-
-func (kvv keyValuesValue) Set(s string) error {
-	parts := strings.SplitN(s, "=", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid key value pair %q, must be in format key=value", s)
-	}
-	kvv[parts[0]] = parts[1]
-	return nil
-}
-
-func (kvv keyValuesValue) Type() string {
-	return "key=value"
-}
-
 type accessCommand struct {
 	genericOptions *genericclioptions.ConfigFlags
 
 	execOptions *execOptions
 	validFor    time.Duration
-	customKeys  keyValuesValue
+	customKeys  map[string]string
 }
 
 type execOptions struct {
