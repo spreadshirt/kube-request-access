@@ -515,6 +515,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 		}
 
 		if podExecOptions.Stdin || podExecOptions.TTY {
+			err = ah.auditer.AuditExec(ctx, admissionReview.Request, false, podExecOptions, false)
+			if err != nil {
+				return false, "audit failed", http.StatusInternalServerError, err
+			}
 			return false, "stdin (-i, --stdin) and tty (-t, --tty) access are currently not allowed", http.StatusForbidden, nil
 		}
 
@@ -561,6 +565,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 
 		if match == nil {
 			klog.Error("no match")
+			err = ah.auditer.AuditExec(ctx, admissionReview.Request, false, podExecOptions, false)
+			if err != nil {
+				return false, "audit failed", http.StatusInternalServerError, err
+			}
 			return false, "", http.StatusForbidden, nil
 		}
 
@@ -583,6 +591,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 
 		if grantMatch == nil {
 			klog.Error("no grant match")
+			err = ah.auditer.AuditExec(ctx, admissionReview.Request, false, podExecOptions, false)
+			if err != nil {
+				return false, "audit failed", http.StatusInternalServerError, err
+			}
 			return false, "", http.StatusForbidden, nil
 		}
 
@@ -618,6 +630,10 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 		}
 
 		if hasExpired {
+			err = ah.auditer.AuditExec(ctx, admissionReview.Request, false, podExecOptions, false)
+			if err != nil {
+				return false, "audit failed", http.StatusInternalServerError, err
+			}
 			msg := "access request has expired"
 			err := fmt.Errorf("%s: %s is after %s", msg, validUntil, time.Now())
 			return false, msg, http.StatusForbidden, err
