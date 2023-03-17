@@ -19,7 +19,9 @@ openssl genrsa -out "$NAME.key" 2048
 openssl req -new -key "$NAME.key" -out "$NAME.csr" -config <( printf "prompt=no\ndistinguished_name=req_distinguished_name\n[req_distinguished_name]\nCN=%s\nOU=org\nemailAddress=%s@org.org\n" "$NAME" "$NAME" ) 
 
 CLUSTER_NAME="${CLUSTER_NAME:-k3s-default}"
-CONTEXT="k3d-$CLUSTER_NAME"
+CONTEXT="${CONTEXT:-k3d-$CLUSTER_NAME}"
+
+ROLE="${ROLE:-developer}"
 
 # request cert
 cat <<EOF | kubectl --context "$CONTEXT" apply -f -
@@ -47,4 +49,4 @@ kubectl --context "$CONTEXT" config set-context "$NAME" --cluster="$CONTEXT" --u
 
 rm "$NAME.key" "$NAME.csr" "$NAME.crt"
 
-kubectl --context "$CONTEXT" get rolebinding "developer-binding-$NAME" &> /dev/null || kubectl --context "$CONTEXT" create rolebinding "developer-binding-$NAME" --role=developer --user="$NAME"
+kubectl --context "$CONTEXT" get rolebinding "developer-binding-$NAME" &> /dev/null || kubectl --context "$CONTEXT" create rolebinding "developer-binding-$NAME" --role="$ROLE" --user="$NAME"
