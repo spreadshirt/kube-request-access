@@ -401,7 +401,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 			accessRequest.Spec.UserInfo.Username = ah.UsernamePrefix + accessRequest.Spec.UserInfo.Username
 		}
 
-		if admissionReview.Request.UserInfo.Username != accessRequest.Spec.UserInfo.Username {
+		if !ah.isAlwaysAllowed(admissionReview.Request.UserInfo) && admissionReview.Request.UserInfo.Username != accessRequest.Spec.UserInfo.Username {
 			msg := fmt.Sprintf("you can only request access for yourself (requested for %q, but authenticated as %q)",
 				accessRequest.Spec.UserInfo.Username,
 				admissionReview.Request.UserInfo.Username)

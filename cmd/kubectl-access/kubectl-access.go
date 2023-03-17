@@ -71,6 +71,7 @@ func main() {
 container to be attached or the first container in the pod will be chosen`)
 	requestExecCmd.Flags().DurationVarP(&accessCommand.validFor, "valid-for", "d", 0, "Amount of the that the access is requested for (command will only be allowed once if not specified)")
 	requestExecCmd.Flags().StringToStringVarP(&accessCommand.customKeys, "custom-key", "k", nil, "Custom key-value pairs to set")
+	requestExecCmd.Flags().StringVarP(&accessCommand.onBehalfOf, "on-behalf-of", "", "", "Username to create the request on behalf of (only for admins)")
 	requestCmd.AddCommand(requestExecCmd)
 
 	grantCmd := &cobra.Command{
@@ -98,6 +99,7 @@ type accessCommand struct {
 	execOptions *execOptions
 	validFor    time.Duration
 	customKeys  map[string]string
+	onBehalfOf  string
 }
 
 type execOptions struct {
@@ -197,6 +199,10 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 		currentContext = *ac.genericOptions.Context
 	}
 	userName := rawConfig.Contexts[currentContext].AuthInfo
+
+	if ac.onBehalfOf != "" {
+		userName = ac.onBehalfOf
+	}
 
 	accessRequest := &accessrequestsv1.AccessRequest{
 		ObjectMeta: metav1.ObjectMeta{
