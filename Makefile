@@ -14,6 +14,7 @@ local-config: dev/localhost.crt dev/localhost.key dev/validating-admission-webho
 dev/localhost.crt dev/localhost.key:
 	openssl req -x509 -out dev/localhost.crt -keyout dev/localhost.key \
 		-newkey rsa:2048 -nodes -sha256 \
+		-days +365 \
 		-subj '/CN=kube-request-access.default.svc' -extensions EXT -config <( \
 		printf "[dn]\nCN=kube-request-access.default.svc\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:kube-request-access.default.svc,DNS:webhook-auditer.default.svc,DNS:webhook-validator.default.svc,DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
 
