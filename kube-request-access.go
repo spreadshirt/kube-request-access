@@ -56,6 +56,9 @@ type admissionConfig struct {
 	keyFile  string
 	verbose  bool
 
+	cleanupInterval time.Duration
+	deleteAfter     time.Duration
+
 	grantedRoleName         string
 	alwaysAllowedGroupNames []string
 	usernamePrefix          string
@@ -79,6 +82,9 @@ func main() {
 	cmd.Flags().StringVarP(&cfg.addr, "address", "a", "localhost:8443", "Address to listen on")
 	cmd.Flags().StringVarP(&cfg.certFile, "cert-file", "c", "dev/localhost.crt", "HTTPS cert file")
 	cmd.Flags().StringVarP(&cfg.keyFile, "key-file", "k", "dev/localhost.key", "HTTPS key file")
+
+	cmd.Flags().DurationVarP(&cfg.cleanupInterval, "cleanup-interval", "", 5*time.Minute, "The interval with which remaining objects are cleaned up")
+	cmd.Flags().DurationVarP(&cfg.deleteAfter, "delete-after", "", 48*time.Hour, "The interval after which unused access requests are deleted")
 
 	cmd.Flags().StringVar(&cfg.grantedRoleName, "granted-role-name", "", "Name of the role that is given to a user temporarily when a request is granted")
 	cmd.Flags().StringSliceVar(&cfg.alwaysAllowedGroupNames, "always-allowed-group-name", nil, "Name of a group whose members will be allowed to execute commands without a request and grant")
@@ -190,6 +196,8 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 		extendedValidator: validator,
 	}
 
+	go handler.cleanup(cfg.cleanupInterval, cfg.deleteAfter)
+
 	if len(cfg.alwaysAllowedGroupNames) > 0 {
 		handler.AlwaysAllowedGroupNames = make(map[string]bool, len(cfg.alwaysAllowedGroupNames))
 		for _, alwaysAllowedGroup := range cfg.alwaysAllowedGroupNames {
@@ -233,6 +241,83 @@ func logFormatter(_ io.Writer, params handlers.LogFormatterParams) {
 		"status.code", params.StatusCode,
 		"request.url", params.URL.String(),
 	)
+}
+
+// cleanup deletes access requests (and thus associated objects) after a while.
+//
+// - access requests with a `validFor` duration will be deleted after it has expired (grant creation date + `validFor`)
+// - access requests without `validFor` will be deleted after `deleteAfter` has passed
+func (ah *admissionHandler) cleanup(interval time.Duration, deleteAfter time.Duration) {
+	for {
+		time.Sleep(interval)
+
+		requests, err := ah.accessRequestsClient.AccessRequests("default").List(context.Background(), metav1.ListOptions{})
+		if err != nil {
+			klog.ErrorS(err, "could not list access requests")
+			continue
+		}
+
+		grants, err := ah.accessRequestsClient.AccessGrants("default").List(context.Background(), metav1.ListOptions{})
+		if err != nil {
+			klog.ErrorS(err, "could not list access grants")
+			continue
+		}
+
+		for _, request := range requests.Items {
+			// handle single-use access requests first (no need to look up their grant first for lifetime)
+			if request.Spec.ValidFor == "" {
+				if request.CreationTimestamp.Time.Add(deleteAfter).After(time.Now()) {
+					err = ah.accessRequestsClient.AccessRequests(request.Namespace).Delete(context.Background(), request.Name, metav1.DeleteOptions{})
+					if err != nil {
+						klog.ErrorS(err, "could not delete access request", "access-request", request.Name)
+						continue
+					}
+
+					klog.InfoS("deleted unused access request", "access-request", request.Name, "deleted-after", deleteAfter.String())
+				}
+
+				continue
+			}
+
+			dur, err := time.ParseDuration(request.Spec.ValidFor)
+			if err != nil {
+				klog.ErrorS(err, "invalid duration", "access-request", request.Name)
+				continue
+			}
+
+			if request.CreationTimestamp.Time.Add(dur + 1*time.Minute).Before(time.Now()) {
+				// not expired yet, skip
+				continue
+			}
+
+			var grantMatch *accessrequestsv1.AccessGrant
+			for _, grant := range grants.Items {
+				if grant.Spec.GrantFor == request.Name &&
+					grant.Status == accessrequestsv1.AccessGrantGranted {
+					grantMatch = &grant
+					break
+				}
+			}
+
+			if grantMatch == nil {
+				// access has not been granted yet, leave it alone
+				continue
+			}
+
+			if grantMatch.CreationTimestamp.Time.Add(dur + 1*time.Minute).Before(time.Now()) {
+				// not expired yet, skip
+				continue
+			}
+
+			err = ah.accessRequestsClient.AccessRequests(request.Namespace).Delete(context.Background(), request.Name, metav1.DeleteOptions{})
+			if err != nil {
+				klog.ErrorS(err, "could not delete access request", "access-request", request.Name)
+				continue
+			}
+
+			klog.InfoS("deleted expired access request", "access-request", request.Name)
+		}
+	}
 }
 
 func (ah *admissionHandler) handleAdmission(w http.ResponseWriter, req *http.Request) {
