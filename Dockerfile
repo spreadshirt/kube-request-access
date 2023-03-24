@@ -2,8 +2,11 @@ FROM docker.io/golang:1.20-alpine3.17 as builder
 
 WORKDIR /build
 
+COPY go.mod go.sum .
+RUN --mount=type=cache,target=/root/.go/pkg go mod download -x
 COPY . .
-RUN go build .
+RUN --mount=type=cache,target=/root/.go/pkg --mount=type=cache,target=/root/.cache/go-build \
+  go build -v .
 
 FROM alpine:3.17
 
