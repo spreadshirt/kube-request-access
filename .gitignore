@@ -3,3 +3,5 @@
 /webhook-auditer
 /webhook-validator
 /.go
+
+dist/
