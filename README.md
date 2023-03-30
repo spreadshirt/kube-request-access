@@ -14,7 +14,7 @@ This project is inspired by the internal `zkubectl cluster-access` [in use at Za
 
 Here's what the workflow looks like in practice:
 
-TODO: asciinema demo here
+[![asciicast of `kubectl access` workflow](https://asciinema.org/a/572387.png)](https://asciinema.org/a/572387)
 
 ## Usage
 
