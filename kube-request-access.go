@@ -266,7 +266,7 @@ func (ah *admissionHandler) cleanup(interval time.Duration, deleteAfter time.Dur
 		for _, request := range requests.Items {
 			// handle single-use access requests first (no need to look up their grant first for lifetime)
 			if request.Spec.ValidFor == "" {
-				if request.CreationTimestamp.Time.Add(deleteAfter).After(time.Now()) {
+				if request.CreationTimestamp.Time.Add(deleteAfter).Before(time.Now()) {
 					err = ah.accessRequestsClient.AccessRequests(request.Namespace).Delete(context.Background(), request.Name, metav1.DeleteOptions{})
 					if err != nil {
 						klog.ErrorS(err, "could not delete access request", "access-request", request.Name)
