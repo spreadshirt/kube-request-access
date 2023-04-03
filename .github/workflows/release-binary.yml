@@ -28,14 +28,14 @@ jobs:
 
       - name: Build GoReleaser snapshot
         uses: goreleaser/goreleaser-action@v4
-        if: github.event_name == 'pull_request'
+        if: contains(fromJSON('["pull_request", "schedule"]'), github.event_name) # only check if release is possible
         with:
           version: latest
           args: release --clean --snapshot
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' # tag was pushed
         with:
           version: latest
           args: release --clean
