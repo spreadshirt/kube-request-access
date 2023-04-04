@@ -1,0 +1,41 @@
+# kubectl exec is usually not allowed:
+kubectl --context dev exec nginx-7fb96c846b-pcnxl -- cat /etc/nginx/nginx.conf
+
+# let's request access!
+kubectl access --context dev request exec nginx-7fb96c846b-pcnxl -- cat /etc/nginx/nginx.conf
+
+# pretend we're an admin and grant it
+kubectl access --context admin grant
+
+# note execOptions and userInfo above
+
+kubectl --context admin get accessrequests.spreadgroup.com
+kubectl --context admin get accessgrants.spreadgroup.com
+
+# now it works!
+kubectl --context dev exec nginx-7fb96c846b-pcnxl -- cat /etc/nginx/nginx.conf
+
+# only once by default
+kubectl --context dev exec nginx-7fb96c846b-pcnxl -- cat /etc/nginx/nginx.conf
+
+# let's request access for a while
+kubectl access --context dev request exec --valid-for=10m nginx-7fb96c846b-pcnxl -- cat /etc/nginx/nginx.conf
+
+kubectl access --context admin grant
+
+# note the validFor field
+
+# now we can run it multiple times
+kubectl --context dev exec nginx-7fb96c846b-pcnxl -- cat /etc/nginx/nginx.conf
+kubectl --context dev exec nginx-7fb96c846b-pcnxl -- cat /etc/nginx/nginx.conf
+
+# but of course only this command
+kubectl --context dev exec nginx-7fb96c846b-pcnxl -- cat /etc/passwd
+
+# admins can revoke access
+kubectl --context admin get accessrequests.spreadgroup.com
+kubectl --context admin delete accessrequests.spreadgroup.com
+
+kubectl --context dev exec nginx-7fb96c846b-pcnxl -- cat /etc/nginx/nginx.conf
+
+# and that's kube-request-access!
