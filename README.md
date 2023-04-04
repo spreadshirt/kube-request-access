@@ -39,7 +39,31 @@ See [Architecture](#architecture) and [Deployment](#deployment) sections below.
 
 ## Architecture
 
-TODO: architecture diagram here
+```mermaid
+flowchart TD
+    A[Developer] -->|kubectl exec ...| B[Kubernetes API]
+    B  --> Bv[ValidatingAdmissionWebhook]
+    Bv --> C(kube-request-access)
+    C --> D[Matching AccessRequest?]
+    %%D -->|Access denied| B
+    D -->|Yes| E[Matching AccessGrant?]
+    %%E -->|Access denied| B
+    E -->|Yes| F[Allowed]
+    F --> B
+
+    C -->|Allowed/Denied| audit
+    %%D --> audit
+    %%E --> audit
+    subgraph audit [audit]
+        aa[Send to optional audit webhook] --> ab[(Audit log)]
+    end
+
+    %%subgraph access
+    %%  dev --> req
+    %%  admin -->|grant/deny| req --> grant
+    %%  grant --> validation
+    %%end
+```
 
 - `kube-request-access` intercepts `AccessRequest`s, `AccessGrant`s and `pods/exec` API calls and decides
   if they are valid
