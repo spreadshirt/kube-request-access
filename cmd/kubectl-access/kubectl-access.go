@@ -21,6 +21,9 @@ import (
 	accessrequestsclientv1 "github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned/typed/accessrequests/v1"
 )
 
+// version is set by goreleaser, see https://goreleaser.com/customization/builds/.
+var version = "dev"
+
 func main() {
 	// turning this off displays our subcommands first (instead of help and completion first)
 	cobra.EnableCommandSorting = false
@@ -39,6 +42,18 @@ func main() {
 	kubectl access grant <name>
 `,
 		Args: cobra.MinimumNArgs(1),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			updateInfo, err := IsUpdateAvailable(context.Background(), "v"+version)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not check for updates: %s\n", err)
+				return
+			}
+
+			if updateInfo != nil {
+				fmt.Fprintf(os.Stderr, "An update is available (%s -> %s), please download it from https://github.com/spreadshirt/kube-request-access/releases/latest!\n",
+					updateInfo.CurrentVersion, updateInfo.LatestVersion)
+			}
+		},
 	}
 
 	accessCommand := &accessCommand{
