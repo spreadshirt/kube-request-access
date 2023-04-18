@@ -21,8 +21,12 @@ import (
 	accessrequestsclientv1 "github.com/spreadshirt/kube-request-access/apis/generated/clientset/versioned/typed/accessrequests/v1"
 )
 
-// version is set by goreleaser, see https://goreleaser.com/customization/builds/.
-var version = "dev"
+// these variables are set by goreleaser, see https://goreleaser.com/customization/builds/.
+var (
+	version = "dev"
+	commit  = "local"
+	date    = "unknown"
+)
 
 func main() {
 	// turning this off displays our subcommands first (instead of help and completion first)
@@ -41,7 +45,8 @@ func main() {
 	# grant access
 	kubectl access grant <name>
 `,
-		Args: cobra.MinimumNArgs(1),
+		Args:    cobra.MinimumNArgs(1),
+		Version: version, // set so that cobra adds the --version flag
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			updateInfo, err := IsUpdateAvailable(context.Background(), "v"+version)
 			if err != nil {
@@ -55,6 +60,14 @@ func main() {
 			}
 		},
 	}
+
+	cmd.SetVersionTemplate(
+		fmt.Sprintf(`Version:    %s
+Commit:     %s
+Build date: %s
+`,
+			"v"+version, commit, date),
+	)
 
 	accessCommand := &accessCommand{
 		execOptions: &execOptions{},
