@@ -315,6 +315,9 @@ func (ac *accessCommand) Grant(cmd *cobra.Command, requestName string) error {
 		return fmt.Errorf("could not get accessrequest: %w", err)
 	}
 
+	// remove this field which contains no useful information for this and makes the output much longer than it needs to be
+	accessRequest.ManagedFields = nil
+
 	// TODO: get this set automatically by the client
 	accessRequest.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Group: "spreadgroup.com", Kind: "AccessRequest"})
 	printer := &printers.YAMLPrinter{}
