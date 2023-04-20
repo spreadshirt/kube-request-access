@@ -6,6 +6,7 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/spf13/cobra v1.2.1
+	golang.org/x/mod v0.10.0
 	k8s.io/api v0.0.0-20221026235553-5794fb8999af
 	k8s.io/apimachinery v0.23.14-rc.0
 	k8s.io/cli-runtime v0.0.0-20221027003536-e4bd4c19711c
