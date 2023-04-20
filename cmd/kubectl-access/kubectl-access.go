@@ -323,6 +323,28 @@ func (ac *accessCommand) Grant(cmd *cobra.Command, requestName string) error {
 		return fmt.Errorf("could not print object: %w", err)
 	}
 
+	duration := "once"
+	if accessRequest.Spec.ValidFor != "" {
+		duration = fmt.Sprintf("for %s", accessRequest.Spec.ValidFor)
+	}
+	command := fmt.Sprintf("%q", accessRequest.Spec.ExecOptions.Command)
+	if len(accessRequest.Spec.ExecOptions.Command) == 0 {
+		command = "ANY command"
+	}
+	fmt.Println("---")
+	fmt.Printf(`%q requested by %q
+
+- requesting access to %q and container %q in namespace %q
+- to run %s
+- %s
+`,
+		accessRequest.Name, accessRequest.Spec.UserInfo.Username,
+		accessRequest.Spec.ForObject.Name, accessRequest.Spec.ExecOptions.Container, accessRequest.Spec.ForObject.Namespace,
+		command,
+		duration,
+	)
+	fmt.Println()
+
 	fmt.Print("Grant access to the request above ([yN])? ")
 	scanner := bufio.NewScanner(os.Stdin)
 	if !scanner.Scan() {
