@@ -223,8 +223,11 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 	}
 
 	currentContext := rawConfig.CurrentContext
-	if ac.genericOptions.Context != nil {
+	if ac.genericOptions.Context != nil && *ac.genericOptions.Context != "" {
 		currentContext = *ac.genericOptions.Context
+	}
+	if currentContext == "" {
+		return fmt.Errorf("no context set")
 	}
 	userName := rawConfig.Contexts[currentContext].AuthInfo
 
