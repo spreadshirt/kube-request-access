@@ -223,8 +223,11 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 	}
 
 	currentContext := rawConfig.CurrentContext
-	if ac.genericOptions.Context != nil {
+	if ac.genericOptions.Context != nil && *ac.genericOptions.Context != "" {
 		currentContext = *ac.genericOptions.Context
+	}
+	if currentContext == "" {
+		return fmt.Errorf("no context set")
 	}
 	userName := rawConfig.Contexts[currentContext].AuthInfo
 
@@ -315,6 +318,9 @@ func (ac *accessCommand) Grant(cmd *cobra.Command, requestName string) error {
 		return fmt.Errorf("could not get accessrequest: %w", err)
 	}
 
+	// remove this field which contains no useful information for this and makes the output much longer than it needs to be
+	accessRequest.ManagedFields = nil
+
 	// TODO: get this set automatically by the client
 	accessRequest.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Group: "spreadgroup.com", Kind: "AccessRequest"})
 	printer := &printers.YAMLPrinter{}
@@ -322,6 +328,28 @@ func (ac *accessCommand) Grant(cmd *cobra.Command, requestName string) error {
 	if err != nil {
 		return fmt.Errorf("could not print object: %w", err)
 	}
+
+	duration := "once"
+	if accessRequest.Spec.ValidFor != "" {
+		duration = fmt.Sprintf("for %s", accessRequest.Spec.ValidFor)
+	}
+	command := fmt.Sprintf("%q", accessRequest.Spec.ExecOptions.Command)
+	if len(accessRequest.Spec.ExecOptions.Command) == 0 {
+		command = "ANY command"
+	}
+	fmt.Println("---")
+	fmt.Printf(`%q requested by %q
+
+- requesting access to %q and container %q in namespace %q
+- to run %s
+- %s
+`,
+		accessRequest.Name, accessRequest.Spec.UserInfo.Username,
+		accessRequest.Spec.ForObject.Name, accessRequest.Spec.ExecOptions.Container, accessRequest.Spec.ForObject.Namespace,
+		command,
+		duration,
+	)
+	fmt.Println()
 
 	fmt.Print("Grant access to the request above ([yN])? ")
 	scanner := bufio.NewScanner(os.Stdin)
