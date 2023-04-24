@@ -14,7 +14,7 @@ This project is inspired by the internal `zkubectl cluster-access` [in use at Za
 
 Here's what the workflow looks like in practice:
 
-[![asciicast of `kubectl request` workflow](https://asciinema.org/a/579147.png)](https://asciinema.org/a/579147)
+[![asciicast of `kubectl request` workflow](https://asciinema.org/a/580126.png)](https://asciinema.org/a/580126)
 
 ## Usage
 
