@@ -44,7 +44,7 @@ func getLatestVersion(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("could not get cache dir: %w", err)
 	}
 
-	latestVersionPath := path.Join(cacheDir, "kubectl-access-version.txt")
+	latestVersionPath := path.Join(cacheDir, "kubectl-request-version.txt")
 	fi, err := os.Stat(latestVersionPath)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("coult not access version file: %w", err)
@@ -64,7 +64,7 @@ func getLatestVersion(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("could not create request: %w", err)
 	}
 
-	req.Header.Set("User-Agent", "kubectl-access / https://github.com/spreadshirt/kube-request-access")
+	req.Header.Set("User-Agent", "kubectl-request / https://github.com/spreadshirt/kube-request-access")
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 

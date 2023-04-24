@@ -36,14 +36,14 @@ func main() {
 	// pflag.CommandLine = flags
 
 	cmd := &cobra.Command{
-		Use:   "access",
+		Use:   "kubectl-request",
 		Short: "Request and grant access to `kubectl exec` and friends",
 		Example: `
 	# request access
-	kubectl access request exec deployment/nginx ls -l /tmp
+	kubectl request exec deployment/nginx ls -l /tmp
 
 	# grant access
-	kubectl access grant <name>
+	kubectl request grant <name>
 `,
 		Args:    cobra.MinimumNArgs(1),
 		Version: version, // set so that cobra adds the --version flag
@@ -76,13 +76,6 @@ Build date: %s
 	accessCommand.genericOptions = genericclioptions.NewConfigFlags(true)
 	accessCommand.genericOptions.AddFlags(cmd.PersistentFlags())
 
-	requestCmd := &cobra.Command{
-		Use:   "request <cmd> [flags-and-args]",
-		Short: "Request access to `kubectl <cmd>`",
-		Args:  cobra.MinimumNArgs(1),
-	}
-	cmd.AddCommand(requestCmd)
-
 	requestExecCmd := &cobra.Command{
 		Use:          "exec (POD | TYPE/NAME) [-c CONTAINER] [flags] -- [COMMAND] [args...] [options]",
 		Short:        "Request access to execute a command in a container.",
@@ -100,7 +93,7 @@ container to be attached or the first container in the pod will be chosen`)
 	requestExecCmd.Flags().DurationVarP(&accessCommand.validFor, "valid-for", "d", 0, "Amount of the that the access is requested for (command will only be allowed once if not specified)")
 	requestExecCmd.Flags().StringToStringVarP(&accessCommand.customKeys, "custom-key", "k", nil, "Custom key-value pairs to set")
 	requestExecCmd.Flags().StringVarP(&accessCommand.onBehalfOf, "on-behalf-of", "", "", "Username to create the request on behalf of (only for admins)")
-	requestCmd.AddCommand(requestExecCmd)
+	cmd.AddCommand(requestExecCmd)
 
 	grantCmd := &cobra.Command{
 		Use:          "grant REQUEST",
