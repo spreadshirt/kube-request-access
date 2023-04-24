@@ -23,12 +23,14 @@ CONTEXT="${CONTEXT:-k3d-$CLUSTER_NAME}"
 
 ROLE="${ROLE:-developer}"
 
+CSR="$NAME-$RANDOM"
+
 # request cert
 cat <<EOF | kubectl --context "$CONTEXT" apply -f -
 apiVersion: certificates.k8s.io/v1
 kind: CertificateSigningRequest
 metadata:
-  name: "$NAME"
+  name: "$CSR"
 spec:
   request: "$(base64 < "$NAME.csr" | tr -d "\n")"
   signerName: kubernetes.io/kube-apiserver-client
@@ -38,14 +40,14 @@ spec:
 EOF
 
 # approve cert request
-kubectl --context "$CONTEXT" certificate approve "$NAME"
+kubectl --context "$CONTEXT" certificate approve "$CSR"
 
 # get cert
-kubectl --context "$CONTEXT" get csr "$NAME" -o jsonpath='{.status.certificate}'| base64 -d > "$NAME.crt"
+kubectl --context "$CONTEXT" get csr "$CSR" -o jsonpath='{.status.certificate}'| base64 -d > "$NAME.crt"
 
-kubectl --context "$CONTEXT" config set-credentials "$NAME" --client-key="$NAME.key" --client-certificate="$NAME.crt" --embed-certs=true
+kubectl config set-credentials "$NAME" --client-key="$NAME.key" --client-certificate="$NAME.crt" --embed-certs=true
 
-kubectl --context "$CONTEXT" config set-context "$NAME" --cluster="$CONTEXT" --user="$NAME"
+kubectl config set-context "$NAME" --cluster="$CONTEXT" --user="$NAME"
 
 rm "$NAME.key" "$NAME.csr" "$NAME.crt"
 
