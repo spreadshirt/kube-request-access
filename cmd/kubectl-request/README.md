@@ -24,7 +24,7 @@ Here's the full `kubectl request --help` message for reference:
 Request and grant access to `kubectl exec` and friends
 
 Usage:
-  request [command]
+  kubectl-request [command]
 
 Examples:
 
@@ -36,7 +36,7 @@ Examples:
 
 
 Available Commands:
-  request     Request access to `kubectl <cmd>`
+  exec        Request access to execute a command in a container.
   grant       Grant access to the given request
   help        Help about any command
   completion  generate the autocompletion script for the specified shell
@@ -51,7 +51,7 @@ Flags:
       --client-key string              Path to a client key file for TLS
       --cluster string                 The name of the kubeconfig cluster to use
       --context string                 The name of the kubeconfig context to use
-  -h, --help                           help for access
+  -h, --help                           help for kubectl-request
       --insecure-skip-tls-verify       If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
       --kubeconfig string              Path to the kubeconfig file to use for CLI requests.
   -n, --namespace string               If present, the namespace scope for this CLI request
@@ -60,6 +60,7 @@ Flags:
       --tls-server-name string         Server name to use for server certificate validation. If it is not provided, the hostname used to contact the server is used
       --token string                   Bearer token for authentication to the API server
       --user string                    The name of the kubeconfig user to use
+  -v, --version                        version for kubectl-request
 
-Use "access [command] --help" for more information about a command.
+Use "kubectl-request [command] --help" for more information about a command.
 ```
