@@ -1,38 +1,38 @@
-# kubectl-access
+# kubectl-request
 
-`kubectl-access` is a kubectl plugin that manages the `AccessRequest` and `AccessGrant` CRDs
+`kubectl-request` is a kubectl plugin that manages the `AccessRequest` and `AccessGrant` CRDs
 which `kube-request-access` uses to grant access to `kubectl exec`.
 
 ## Installation
 
 Download the [latest release](https://github.com/spreadshirt/kube-request-access/releases/latest) and put the
-`kubectl-access` binary somewhere in your `PATH`.
+`kubectl-request` binary somewhere in your `PATH`.
 
-After that you can use it as `kubectl access`.
+After that you can use it as `kubectl request`.
 
 ## Usage
 
-- request access using `kubectl access request exec ...`
+- request access using `kubectl request exec ...`
   - by default, access is requested to run the specified command once
   - you can also request access to run the given command multiple times for a duration using `--valid-for`
 - wait for an admin to grant permissions (or deny them)
 - run the command you requested access for using `kubectl exec` as usual
 
-Here's the full `kubectl access --help` message for reference:
+Here's the full `kubectl request --help` message for reference:
 
 ```
 Request and grant access to `kubectl exec` and friends
 
 Usage:
-  access [command]
+  request [command]
 
 Examples:
 
         # request access
-        kubectl access request exec deployment/nginx ls -l /tmp
+        kubectl request exec deployment/nginx ls -l /tmp
 
         # grant access
-        kubectl access grant <name>
+        kubectl request grant <name>
 
 
 Available Commands:

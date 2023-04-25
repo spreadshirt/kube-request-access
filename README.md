@@ -14,16 +14,16 @@ This project is inspired by the internal `zkubectl cluster-access` [in use at Za
 
 Here's what the workflow looks like in practice:
 
-[![asciicast of `kubectl access` workflow](https://asciinema.org/a/572387.png)](https://asciinema.org/a/572387)
+[![asciicast of `kubectl request` workflow](https://asciinema.org/a/580126.png)](https://asciinema.org/a/580126)
 
 ## Usage
 
 ### For developers
 
-To request exec access in a cluster, install [kubectl-access](https://github.com/spreadshirt/kube-request-access/releases) and then request access as follows:
+To request exec access in a cluster, install [kubectl-request](https://github.com/spreadshirt/kube-request-access/releases) and then request access as follows:
 
 ```
-$ kubectl access request exec --valid-for 1h nginx-7fb96c846b-pcnxl -- cat '/my/app/config/*'
+$ kubectl request exec --valid-for 1h nginx-7fb96c846b-pcnxl -- cat '/my/app/config/*'
 created accessrequest ... (please wait for an admin to grant the permission)
 
 # after the request is granted
@@ -31,7 +31,7 @@ $ kubectl exec nginx-7fb96c846b-pcnxl -- cat '/my/app/config/*'
 ...
 ```
 
-See [`kubectl-access` docs](./cmd/kubectl-access) docs for more details.
+See [`kubectl-request` docs](./cmd/kubectl-request) docs for more details.
 
 ### For operators
 
@@ -67,7 +67,7 @@ flowchart TD
 
 - `kube-request-access` intercepts `AccessRequest`s, `AccessGrant`s and `pods/exec` API calls and decides
   if they are valid
-- developers request access using `kubectl access request` and admins grant it using `kubectl access grant` ([`kubectl-access`](./cmd/kubectl-access) plugin)
+- developers request access using `kubectl request exec` and admins grant it using `kubectl request grant` ([`kubectl-request`](./cmd/kubectl-request) plugin)
 - `kube-request-access` can defer to custom webhooks to implement organization-specific auditing and additional
   validation, e.g. to store auditing information in a database or send notifications to a chat
 

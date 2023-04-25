@@ -1,4 +1,7 @@
-all: kube-request-access local-config
+all: kubectl-request kube-request-access local-config
+
+kubectl-request: Makefile .goreleaser.yaml cmd/kubectl-request/*.go
+	goreleaser build --clean --snapshot --single-target -o kubectl-request
 
 kube-request-access: Makefile *.go
 	CGO_ENABLED=0 go build .

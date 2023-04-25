@@ -1,5 +1,5 @@
 /kube-request-access
-/kubectl-access
+/kubectl-request
 /webhook-auditer
 /webhook-validator
 /.go
