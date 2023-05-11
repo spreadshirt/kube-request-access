@@ -202,12 +202,17 @@ func (ac *accessCommand) Request(cmd *cobra.Command, args []string) error {
 
 	}
 
-	// default to first container if none is set (like `kubectl exec`)
+	// default to default or first container if none is set (like `kubectl exec`)
 	if ac.execOptions.Container == "" {
 		if len(selectedPod.Spec.Containers) == 0 {
 			return fmt.Errorf("no containers in pod %q", selectedPod.Name)
 		}
-		ac.execOptions.Container = selectedPod.Spec.Containers[0].Name
+
+		if selectedPod.ObjectMeta.Annotations["kubectl.kubernetes.io/default-container"] != "" {
+			ac.execOptions.Container = selectedPod.ObjectMeta.Annotations["kubectl.kubernetes.io/default-container"]
+		} else {
+			ac.execOptions.Container = selectedPod.Spec.Containers[0].Name
+		}
 	}
 
 	accessRequestsClient, err := accessrequestsclientv1.NewForConfig(config)
