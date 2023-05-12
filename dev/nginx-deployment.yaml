@@ -11,10 +11,19 @@ spec:
       app: nginx
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: nginx
       labels:
         app: nginx
     spec:
       containers:
+      # sleeps forever, used to test that default-container annotations is respected
+      - name: sleeper
+        image: busybox
+        command:
+        - /bin/sh
+        - -c
+        - 'sleep infinity'
       - name: nginx
         image: nginx:1.14.2
         ports:
