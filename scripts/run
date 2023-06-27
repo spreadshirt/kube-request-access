@@ -27,7 +27,7 @@ fi
 if ! k3d cluster list | grep "$CLUSTER_NAME"; then
   echo ">>> Cluster does not exist yet, creating $CLUSTER_NAME @ $K8S_VERSION"
 
-  k3d cluster create --image="rancher/k3s:$K8S_VERSION-k3s1"
+  k3d cluster create --image="rancher/k3s:v$K8S_VERSION-k3s1"
 fi
 
 echo ">>> Starting kube-request-access in k3s"
