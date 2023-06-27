@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -61,6 +62,7 @@ type admissionConfig struct {
 
 	grantedRoleName         string
 	alwaysAllowedGroupNames []string
+	alwaysAllowedUserNames  []string
 	usernamePrefix          string
 
 	auditWebhookURL      string
@@ -88,6 +90,7 @@ func main() {
 
 	cmd.Flags().StringVar(&cfg.grantedRoleName, "granted-role-name", "", "Name of the role that is given to a user temporarily when a request is granted")
 	cmd.Flags().StringSliceVar(&cfg.alwaysAllowedGroupNames, "always-allowed-group-name", nil, "Name of a group whose members will be allowed to execute commands without a request and grant")
+	cmd.Flags().StringSliceVar(&cfg.alwaysAllowedUserNames, "always-allowed-user-name", nil, "User name of a user who will be allowed to execute commands without a request and grant")
 	cmd.Flags().StringVar(&cfg.usernamePrefix, "username-prefix", "", "Prefix for usernames to use when verifying and granting access (optional)")
 
 	cmd.Flags().StringVar(&cfg.auditWebhookURL, "audit-webhook-url", "", "URL of the audit webhook to be used")
@@ -132,6 +135,13 @@ type admissionHandler struct {
 	// Additionally they won't have the regular restrictions applied, like exec
 	// with stdin or tty set for interactive commands.
 	AlwaysAllowedGroupNames map[string]bool
+
+	// AlwaysAllowedUserNames can be set to always allow users with a given
+	// user name.  They won't need to request or grant and will always be allowed.
+	//
+	// Additionally they won't have the regular restrictions applied, like exec
+	// with stdin or tty set for interactive commands.
+	AlwaysAllowedUserNames map[string]bool
 
 	// UsernamePrefix can be set to work with systems that add a prefix to the
 	// usernames in Kubernetes.
@@ -202,6 +212,13 @@ func (cfg *admissionConfig) run(_ *cobra.Command, _ []string) error {
 		handler.AlwaysAllowedGroupNames = make(map[string]bool, len(cfg.alwaysAllowedGroupNames))
 		for _, alwaysAllowedGroup := range cfg.alwaysAllowedGroupNames {
 			handler.AlwaysAllowedGroupNames[alwaysAllowedGroup] = true
+		}
+	}
+
+	if len(cfg.alwaysAllowedUserNames) > 0 {
+		handler.AlwaysAllowedUserNames = make(map[string]bool, len(cfg.alwaysAllowedUserNames))
+		for _, alwaysAllowedUser := range cfg.alwaysAllowedUserNames {
+			handler.AlwaysAllowedUserNames[alwaysAllowedUser] = true
 		}
 	}
 
@@ -736,7 +753,7 @@ func (ah *admissionHandler) handleReview(ctx context.Context, admissionReview *a
 }
 
 func (ah *admissionHandler) isAlwaysAllowed(userInfo authenticationv1.UserInfo) bool {
-	if len(ah.AlwaysAllowedGroupNames) < 1 {
+	if len(ah.AlwaysAllowedGroupNames) < 1 && len(ah.AlwaysAllowedUserNames) < 1 {
 		return false
 	}
 
@@ -744,6 +761,15 @@ func (ah *admissionHandler) isAlwaysAllowed(userInfo authenticationv1.UserInfo) 
 		if ah.AlwaysAllowedGroupNames[group] {
 			return true
 		}
+	}
+
+	username := userInfo.Username
+	if ah.UsernamePrefix != "" {
+		// if the usernamePrefix is set, let's remove it
+		username = strings.Replace(username, ah.UsernamePrefix, "", 1)
+	}
+	if _, found := ah.AlwaysAllowedUserNames[username]; found {
+		return true
 	}
 
 	return false
