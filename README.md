@@ -1,6 +1,6 @@
-# kube-request-access
+# kube-request-access -- **retired**
 
-**Status**: alpha, in-use but not widely tested.
+**Status**: ~~alpha, in-use but not widely tested.~~  retired.  (was not used by developers and in the way sometimes.  feel free to revive it)
 
 Let's make `kubectl exec` and friends auditable!
 
